@@ -1,0 +1,19 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: hello
+  labels:
+    workflows.dev/example-label: abc
+  annotations:
+    workflows.dev/author: $(event {.sender.login})
+    workflows.dev/example-annotation: def
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+
+  tasks:
+    test:
+      steps:
+        - name: test
+        - run: ls

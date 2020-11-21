@@ -1,0 +1,17 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: lorem-ipsum
+  namespace: dev
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+    private: false
+
+  tasks:
+
+    lint:
+      steps:
+      - uses: checkout
+      - run: ls

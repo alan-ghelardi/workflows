@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hook-listener
+  namespace: workflows-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hook-listener
+  template:
+    metadata:
+      labels:
+        app: hook-listener
+    spec:
+      serviceAccountName: hook-listener
+      containers:
+      - name: hook-listener
+        image: ko://github.com/nubank/workflows/cmd/hook-listener
+        env:
+        - name: GITHUB_APP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: config-github-app
+              key: app-id
+        - name: GITHUB_INSTALLATION_ID
+          valueFrom:
+            configMapKeyRef:
+              name: config-github-app
+              key: installation-id
+        - name: SYSTEM_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: LOGGER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: config-logging
+              key: zap-logger-config
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: config-logging
+              key: loglevel.hooklistener
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+
+        ports:
+          - name: http
+            containerPort: 8080
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 250m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - all
+        readinessProbe: &probe
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          httpGet:
+            port: http
+            path: /health
+        livenessProbe: *probe
+        volumeMounts:
+        - name: github-app-private-key
+          mountPath: /var/run/secrets/github
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: github-app-private-key

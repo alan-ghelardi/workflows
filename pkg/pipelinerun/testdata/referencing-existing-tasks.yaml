@@ -1,0 +1,27 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: hello-world
+  namespace: dev
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+
+  description: FIXME
+
+  tasks:
+    build:
+      uses:
+        name: golang-builder
+      serviceAccount: sa-1
+
+    test:
+      uses:
+        name: golang-testing
+      serviceAccount: sa-2
+      retries: 2
+      timeout: 1h
+      podTemplate:
+        nodeSelector:
+          label: value

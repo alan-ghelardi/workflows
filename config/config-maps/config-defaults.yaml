@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-defaults
+  namespace: workflows-system
+  labels:
+    workflows.workflows.dev/release: devel
+data:
+  webhook: https://hooks.example.com

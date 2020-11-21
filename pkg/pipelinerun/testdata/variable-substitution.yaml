@@ -1,0 +1,19 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: hello
+  annotations:
+    workflows.dev/author: $(event {.sender.login})
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+
+  tasks:
+    greeting:
+      steps:
+      - name: greeting
+        run: |
+          echo "Hello $(event {.sender.login})!"
+          echo "Thank you for running the workflow $(workflow.name)"
+          echo "The PipelineRun $(context.pipelineRun.name) has been created"

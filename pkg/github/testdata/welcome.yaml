@@ -1,0 +1,10 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: welcome
+spec:
+
+  tasks:
+    welcome:
+      steps:
+      - run: echo "Welcome!"
