@@ -1,3 +1,7 @@
+# Run unit tests.
+test:
+	go test ./...
+
 # Lint Go source files.
 lint: golangci-lint
 	@golangci-lint run

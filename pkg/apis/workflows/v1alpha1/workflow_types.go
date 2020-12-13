@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+
 	"knative.dev/pkg/apis"
 	duckv1 "knative.dev/pkg/apis/duck/v1"
 	"knative.dev/pkg/kmeta"
@@ -52,15 +54,22 @@ var (
 // WorkflowSpec defines the desired state of Workflow
 type WorkflowSpec struct {
 
+	// User-facing description of this workflow.
+	// +optional
+	Description string `json:"description,omitempty"`
+
 	// The repository whose changes trigger the workflow.
-	Repository *Repository `json:"repository"`
+	Repository *Repository `json:"repo"`
 
 	// Github Webhook that triggers this workflow.
 	Webhook *Webhook `json:"webhook"`
 
 	// Other repositories that must be checked out during the execution of this workflow.
 	// +optional
-	SecondaryRepositories []Repository `json:"secondaryRepositories,omitempty"`
+	SecondaryRepositories []Repository `json:"secondaryRepos,omitempty"`
+
+	// The tasks that make up the workflow.
+	Tasks []Task `json:"tasks"`
 }
 
 // Repository contains relevant information about a Github repository associated
@@ -94,6 +103,41 @@ type Webhook struct {
 type DeployKey struct {
 	// Whether or not the deploy key has read-only permissions on the repository.
 	ReadOnly bool `json:"readOnly"`
+}
+
+// Task contains information about the taskruns that make up the workflow.
+type Task struct {
+
+	// The task's name.
+	Name string `json:"name"`
+
+	// Reference to the Tekton task object.
+	// +optional
+	TaskRef string `json:"uses,omitempty"`
+
+	// Execution parameters for the workflow.
+	// +optional
+	Params map[string]string `json:"params,omitempty"`
+
+	// PodTemplate specifies the template to create the pod associated to the underwing TaskRun object.
+	// +optional
+	PodTemplate *pipelinev1beta1.PodTemplate `json:"podTemplate,omitempty"`
+
+	// How many times the task should be retried in case of failures.
+	// +optional
+	Retries int `json:"retries,omitempty"`
+
+	// Service account to be assigned to the underwing taskrun object.
+	// +optional
+	ServiceAccountName string `json:"serviceAccount,omitempty"`
+
+	// Time after which the task times out.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// List of workspaces to be bound to the underwing taskrun object.
+	// +optional
+	WorkspaceNames []string `json:"workspaces,omitempty"`
 }
 
 // WorkflowStatus defines the observed state of Workflow
