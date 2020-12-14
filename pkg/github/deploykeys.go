@@ -12,7 +12,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 
-	"github.com/google/go-github/v32/github"
+	"github.com/google/go-github/v33/github"
 	"github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 
 	"golang.org/x/crypto/ssh"
