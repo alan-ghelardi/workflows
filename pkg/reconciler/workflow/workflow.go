@@ -19,7 +19,6 @@ import (
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	workflowreconciler "github.com/nubank/workflows/pkg/client/injection/reconciler/workflows/v1alpha1/workflow"
 	listers "github.com/nubank/workflows/pkg/client/listers/workflows/v1alpha1"
-	triggersclientset "github.com/tektoncd/triggers/pkg/client/clientset/versioned"
 	"k8s.io/client-go/kubernetes"
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/reconciler"
@@ -37,9 +36,6 @@ type Reconciler struct {
 
 	// KubeClientSet allows us to talk to the k8s for core APIs.
 	KubeClientSet kubernetes.Interface
-
-	// TriggersClientSet allows us to configure triggers objects.
-	TriggersClientSet triggersclientset.Interface
 
 	// workflowLister indexes workflow objects.
 	workflowLister listers.WorkflowLister
