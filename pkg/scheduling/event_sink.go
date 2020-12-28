@@ -38,7 +38,8 @@ type EventSink struct {
 	WorkflowsClientSet workflowsclientset.Interface
 }
 
-// Request represents relevant information about incoming requests.
+// Request is an internal representation of HTTP requests, containing only
+// relevant information.
 type Request struct {
 	Body           []byte
 	Event          *github.Event
@@ -46,15 +47,18 @@ type Request struct {
 	HashSignature  []byte
 }
 
-// Response represents the HTTP response to be returned to callers.
+// Response is an internal representation of a HTTP response.
+// For convenience the same struct contains the HTTP status and other attributes
+// that should be marshaled in the JSON format.
 type Response struct {
-	EventID    *string `json:"event_id,omitempty"`
-	StatusCode int     `json:"-"`
-	Message    string  `json:"message"`
+	Status  int     `json:"-"`
+	EventID *string `json:"event_id,omitempty"`
+	Message string  `json:"message"`
 }
 
-// HandleIncomingEvent ...
-func (e *EventSink) HandleIncomingEvent(ctx context.Context, req *Request) Response {
+// RunWorkflow takes a request containing information sent by Github Webhooks
+// and creates a Tekton PipelineRun object.
+func (e *EventSink) RunWorkflow(ctx context.Context, req *Request) Response {
 	logger := logging.FromContext(ctx)
 	eventID := req.Event.ID
 
@@ -62,14 +66,14 @@ func (e *EventSink) HandleIncomingEvent(ctx context.Context, req *Request) Respo
 	if err != nil {
 		logger.Error(err, "Error reading workflow")
 		if apierrors.IsNotFound(err) {
-			return Response{EventID: eventID,
-				StatusCode: 404,
-				Message:    fmt.Sprintf("Workflow %s not found", req.NamespacedName),
+			return Response{Status: 404,
+				EventID: eventID,
+				Message: fmt.Sprintf("Workflow %s not found", req.NamespacedName),
 			}
 		} else {
-			return Response{EventID: eventID,
-				StatusCode: 500,
-				Message:    fmt.Sprintf("An internal error has occurred while reading workflow %s", req.NamespacedName),
+			return Response{Status: 500,
+				EventID: eventID,
+				Message: fmt.Sprintf("An internal error has occurred while reading workflow %s", req.NamespacedName),
 			}
 		}
 	}
@@ -77,32 +81,48 @@ func (e *EventSink) HandleIncomingEvent(ctx context.Context, req *Request) Respo
 	secret, err := e.KubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Get(ctx, workflow.GetWebhookSecretName(), metav1.GetOptions{})
 	if err != nil {
 		logger.Error(err, "Error reading Webhook secret")
-		return Response{EventID: eventID,
-			StatusCode: 500,
-			Message:    "An internal error has occurred while verifying the request signature",
+		return Response{Status: 500,
+			EventID: eventID,
+			Message: "An internal error has occurred while verifying the request signature",
 		}
 	}
 
 	webhookSecret, err := e.readWebhookSecret(secret)
 	if err != nil {
 		logger.Error(err, "Unable to read Webhook secret")
-		return Response{EventID: eventID,
-			StatusCode: 500,
-			Message:    "An internal error has occurred while verifying the request signature",
+		return Response{Status: 500,
+			EventID: eventID,
+			Message: "An internal error has occurred while verifying the request signature",
 		}
 	}
 
 	if valid, message := e.verifySignature(req, webhookSecret); !valid {
 		logger.Info(message)
-		return Response{EventID: eventID,
-			StatusCode: 403,
-			Message:    message,
+		return Response{Status: 403,
+			EventID: eventID,
+			Message: message,
 		}
 	} else {
 		logger.Debug(message)
 	}
 
-	return Response{EventID: eventID}
+	pipelineRun := buildPipelineRun(workflow, req.Event)
+	createdPipelineRun, err := e.TektonClientSet.TektonV1beta1().PipelineRuns(workflow.GetNamespace()).Create(ctx, pipelineRun, metav1.CreateOptions{})
+
+	if err != nil {
+		logger.Error(err, "Error creating PipelineRun object")
+		return Response{Status: 500,
+			EventID: eventID,
+			Message: fmt.Sprintf("An internal error has occurred while creating the PipelineRun for workflow %s", req.NamespacedName),
+		}
+	}
+
+	logger.Infow("PipelineRun has been successfully created", "tekton.dev/pipeline-run", createdPipelineRun.GetName())
+
+	return Response{Status: 201,
+		EventID: eventID,
+		Message: fmt.Sprintf("PipelineRun %s has been successfully created", createdPipelineRun.GetName()),
+	}
 }
 
 // readWebhookSecret returns the decoded representation of the Webhook secret held by the supplied Secret object.
@@ -121,8 +141,11 @@ func (e *EventSink) readWebhookSecret(secret *corev1.Secret) ([]byte, error) {
 	return decodedWebhookSecret[:bytesWritten], nil
 }
 
-// verifySignature validates the payload sent by Github.
-// For further details, please see: https://docs.github.com/en/free-pro-team@latest/developers/webhooks-and-events/securing-your-webhooks.
+// verifySignature validates the payload sent by Github Webhooks by calculating
+// a hash signature using the provided key and comparing it with the signature
+// sent along with the request.
+// For further details about the algorithm, please see:
+// https://docs.github.com/en/free-pro-team@latest/developers/webhooks-and-events/securing-your-webhooks.
 func (e *EventSink) verifySignature(req *Request, webhookSecret []byte) (bool, string) {
 	if req.HashSignature == nil || len(req.HashSignature) == 0 {
 		return false, fmt.Sprintf("Access denied: Github signature header %s is missing", githubSignatureHeader)
