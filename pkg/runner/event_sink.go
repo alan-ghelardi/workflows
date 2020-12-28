@@ -1,4 +1,4 @@
-package scheduling
+package runner
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
+	"github.com/nubank/workflows/pkg/pipelinerun"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -106,8 +107,12 @@ func (e *EventSink) RunWorkflow(ctx context.Context, req *Request) Response {
 		logger.Debug(message)
 	}
 
-	pipelineRun := buildPipelineRun(workflow, req.Event)
-	createdPipelineRun, err := e.TektonClientSet.TektonV1beta1().PipelineRuns(workflow.GetNamespace()).Create(ctx, pipelineRun, metav1.CreateOptions{})
+	pipelineRun := pipelinerun.From(workflow).
+		And(req.Event).
+		Build()
+	createdPipelineRun, err := e.TektonClientSet.TektonV1beta1().
+		PipelineRuns(workflow.GetNamespace()).
+		Create(ctx, pipelineRun, metav1.CreateOptions{})
 
 	if err != nil {
 		logger.Error(err, "Error creating PipelineRun object")

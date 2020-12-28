@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strconv"
 
+	corev1 "k8s.io/api/core/v1"
+
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
 	"knative.dev/pkg/apis"
@@ -51,7 +53,7 @@ var (
 	_ duckv1.KRShaped = (*Workflow)(nil)
 )
 
-// WorkflowSpec defines the desired state of Workflow
+// WorkflowSpec defines the desired state of Workflow objects.
 type WorkflowSpec struct {
 
 	// User-facing description of this workflow.
@@ -69,7 +71,7 @@ type WorkflowSpec struct {
 	SecondaryRepositories []Repository `json:"secondaryRepos,omitempty"`
 
 	// The tasks that make up the workflow.
-	Tasks []Task `json:"tasks"`
+	Tasks map[string]*Task `json:"tasks"`
 }
 
 // Repository contains relevant information about a Github repository associated
@@ -101,25 +103,23 @@ type Webhook struct {
 
 // DeployKey contains a few settings for the deploy keys associated to the workflow.
 type DeployKey struct {
+
 	// Whether or not the deploy key has read-only permissions on the repository.
 	ReadOnly bool `json:"readOnly"`
 }
 
-// Task contains information about the taskruns that make up the workflow.
+// Task contains information about the tasks that make up the workflow.
 type Task struct {
 
-	// The task's name.
-	Name string `json:"name"`
-
-	// Reference to the Tekton task object.
+	// A map of environment variables that are available to all steps in the task.
 	// +optional
-	TaskRef string `json:"uses,omitempty"`
+	Env map[string]string `json:"env,omitempty"`
 
-	// Execution parameters for the workflow.
+	// Execution parameters for this task.
 	// +optional
 	Params map[string]string `json:"params,omitempty"`
 
-	// PodTemplate specifies the template to create the pod associated to the underwing TaskRun object.
+	// Specifies the template to create the pod associated to the underwing Tekton TaskRun object.
 	// +optional
 	PodTemplate *pipelinev1beta1.PodTemplate `json:"podTemplate,omitempty"`
 
@@ -127,17 +127,49 @@ type Task struct {
 	// +optional
 	Retries int `json:"retries,omitempty"`
 
-	// Service account to be assigned to the underwing taskrun object.
+	// Assigns resources (CPU and memory) to the task.
 	// +optional
-	ServiceAccountName string `json:"serviceAccount,omitempty"`
+	Resources corev1.ResourceList `json:"resources,omitempty"`
+
+	// Service account to be assigned to the underwing TaskRun object.
+	// +optional
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+
+	// Sequential steps to be executed in this task.
+	// +optional
+	Steps []EmbeddedStep `json:"steps,omitempty"`
 
 	// Time after which the task times out.
 	// +optional
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 
-	// List of workspaces to be bound to the underwing taskrun object.
+	// Selects an existing Tekton Task to run in this workflow.
 	// +optional
-	WorkspaceNames []string `json:"workspaces,omitempty"`
+	Use string `json:"use,omitempty"`
+
+	// List of workspaces to be bound to the underwing TaskRun object.
+	// +optional
+	Workspace []string `json:"workspaces,omitempty"`
+}
+
+// EmbeddedStep defines a step to be executed as part of a task.
+type EmbeddedStep struct {
+
+	// Docker/OCI image to serve as the container for the step in question.
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// The step's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// Runs command-line programs using the container's shell.
+	// +optional
+	Run string `json:"run,omitempty"`
+
+	// Selects a built-in step to run as part of the task in question.
+	// +optional
+	Use string `json:"use,omitempty"`
 }
 
 // WorkflowStatus defines the observed state of Workflow

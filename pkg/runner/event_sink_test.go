@@ -1,4 +1,4 @@
-package scheduling
+package runner
 
 import (
 	"context"
@@ -214,11 +214,11 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 
 func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 	tektonClient := tektonclientset.NewSimpleClientset()
-		tektonClient.PrependReactor("create", "pipelineruns", func(action k8stesting.Action) (bool, runtime.Object, error) {
-			return true, &pipelinev1beta1.PipelineRun{ObjectMeta: metav1.ObjectMeta{Name: "test-1-run-123",
-				Namespace: "dev",
-			},
-			}, nil
+	tektonClient.PrependReactor("create", "pipelineruns", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		return true, &pipelinev1beta1.PipelineRun{ObjectMeta: metav1.ObjectMeta{Name: "test-1-run-123",
+			Namespace: "dev",
+		},
+		}, nil
 	})
 
 	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
