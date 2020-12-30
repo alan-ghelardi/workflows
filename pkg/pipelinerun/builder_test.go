@@ -68,6 +68,14 @@ func basicContainerResources() corev1.ResourceList {
 	}
 }
 
+func newMinimalWorkflow() *workflowsv1alpha1.Workflow {
+	return &workflowsv1alpha1.Workflow{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-3",
+			Namespace: "dev"},
+		Spec: workflowsv1alpha1.WorkflowSpec{Tasks: map[string]*workflowsv1alpha1.Task{"hello": &workflowsv1alpha1.Task{Steps: []workflowsv1alpha1.EmbeddedStep{{Run: "echo Hello!"}}}}},
+	}
+}
+
 func getPipelineTaskOrFail(t *testing.T, pipelineRun *pipelinev1beta1.PipelineRun, taskName string) pipelinev1beta1.PipelineTask {
 	for _, x := range pipelineRun.Spec.PipelineSpec.Tasks {
 		if taskName == x.Name {
@@ -194,6 +202,29 @@ go test ./...`,
 
 	comparePipelineTasks(t, wantLint, gotLint)
 	comparePipelineTasks(t, wantTest, gotTest)
+}
+
+func TestEmbeddedTaskWithDefaultImage(t *testing.T) {
+	workflow := newMinimalWorkflow()
+	pipelineRun := From(workflow).Build()
+
+	want := pipelinev1beta1.PipelineTask{Name: "hello",
+		TaskSpec: &pipelinev1beta1.EmbeddedTask{TaskSpec: pipelinev1beta1.TaskSpec{Steps: []pipelinev1beta1.Step{{Container: corev1.Container{Image: "gcr.io/google-containers/busybox",
+			ImagePullPolicy: "Always",
+		},
+			Script: `#!/usr/bin/env sh
+set -o errexit
+set -o nounset
+echo Hello!`,
+		},
+		},
+		},
+		},
+	}
+
+	got := getPipelineTaskOrFail(t, pipelineRun, "hello")
+
+	comparePipelineTasks(t, want, got)
 }
 
 func TestTaskRunSpecs(t *testing.T) {
