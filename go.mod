@@ -3,6 +3,7 @@ module github.com/nubank/workflows
 go 1.14
 
 require (
+	github.com/google/go-cmp v0.5.4
 	github.com/google/go-github/v33 v33.0.0
 	github.com/google/licenseclassifier v0.0.0-20200708223521-3d09a0ea2f39
 	github.com/tektoncd/pipeline v0.18.1

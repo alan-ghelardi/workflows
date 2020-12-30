@@ -7,8 +7,12 @@ import (
 
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// defaultImage is the image used in steps when none is set.
+const defaultImage = "gcr.io/google-containers/busybox"
 
 // Builder builds Tekton PipelineRun objects.
 type Builder struct {
@@ -61,7 +65,7 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 	if task.Use != "" {
 		pipelineTask.TaskRef = &pipelinev1beta1.TaskRef{Name: task.Use}
 	} else {
-		pipelineTask.TaskSpec = b.buildEmbededTask(taskName, task)
+		pipelineTask.TaskSpec = b.buildEmbededTask(task)
 	}
 
 	pipelineTask.Retries = task.Retries
@@ -71,9 +75,75 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 	return pipelineTask
 }
 
-func (b *Builder) buildEmbededTask(taskName string, task *workflowsv1alpha1.Task) *pipelinev1beta1.EmbeddedTask {
+func (b *Builder) buildEmbededTask(task *workflowsv1alpha1.Task) *pipelinev1beta1.EmbeddedTask {
 	embededTask := &pipelinev1beta1.EmbeddedTask{}
+
+	if task.Env != nil || task.Resources != nil {
+		embededTask.StepTemplate = b.buildStepTemplate(task)
+	}
+	embededTask.Steps = make([]pipelinev1beta1.Step, 0)
+
+	for _, step := range task.Steps {
+		embededTask.Steps = append(embededTask.Steps, b.buildStep(step))
+	}
+
 	return embededTask
+}
+
+func (b *Builder) buildStepTemplate(task *workflowsv1alpha1.Task) *corev1.Container {
+	stepTemplate := &corev1.Container{}
+
+	if task.Env != nil {
+		stepTemplate.Env = b.buildEnv(task.Env)
+	}
+
+	if task.Resources != nil {
+		// Assume that requests and limits have the same values.
+		stepTemplate.Resources = corev1.ResourceRequirements{Requests: task.Resources,
+			Limits: task.Resources,
+		}
+	}
+
+	return stepTemplate
+}
+
+func (b *Builder) buildStep(embeddedStep workflowsv1alpha1.EmbeddedStep) pipelinev1beta1.Step {
+	step := pipelinev1beta1.Step{}
+
+	if embeddedStep.Image != "" {
+		step.Image = embeddedStep.Image
+	} else {
+		step.Image = defaultImage
+	}
+
+	step.ImagePullPolicy = "Always"
+
+	if embeddedStep.Name != "" {
+		step.Name = embeddedStep.Name
+	}
+
+	step.Script = fmt.Sprintf(`#!/usr/bin/env sh
+set -o errexit
+set -o nounset
+%s`, embeddedStep.Run)
+
+	if embeddedStep.Env != nil {
+		step.Env = b.buildEnv(embeddedStep.Env)
+	}
+
+	return step
+}
+
+func (b *Builder) buildEnv(env map[string]string) []corev1.EnvVar {
+	envVars := make([]corev1.EnvVar, 0)
+
+	for name, value := range env {
+		envVars = append(envVars, corev1.EnvVar{Name: name,
+			Value: value,
+		})
+	}
+
+	return envVars
 }
 
 func (b *Builder) buildTaskRunSpecs() []pipelinev1beta1.PipelineTaskRunSpec {

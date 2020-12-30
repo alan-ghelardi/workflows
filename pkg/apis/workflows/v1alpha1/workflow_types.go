@@ -155,6 +155,10 @@ type Task struct {
 // EmbeddedStep defines a step to be executed as part of a task.
 type EmbeddedStep struct {
 
+	// A map of environment variables that are available to step in question.
+	// +optional
+	Env map[string]string `json:"env,omitempty"`
+
 	// Docker/OCI image to serve as the container for the step in question.
 	// +optional
 	Image string `json:"image,omitempty"`
