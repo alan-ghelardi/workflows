@@ -70,6 +70,19 @@ type WorkflowSpec struct {
 	// +optional
 	SecondaryRepositories []Repository `json:"secondaryRepos,omitempty"`
 
+	// Names of Github events that trigger this workflow.
+	// +optional
+	Events []string `json:"on,omitempty"`
+
+	// Configures the workflow to run on events related to those branches.
+	// +optional
+	Branches []string `json:"branches,omitempty"`
+
+	// Configures the workflow to run on push or pull_request events where
+	// those paths have been modified (created, changed or deleted).
+	// +optional
+	Paths []string `json:"paths,omitempty"`
+
 	// The tasks that make up the workflow.
 	Tasks map[string]*Task `json:"tasks"`
 }
