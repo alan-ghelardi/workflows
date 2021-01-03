@@ -19,13 +19,13 @@ func TestEvents(t *testing.T) {
 		wantMessage string
 		wantResult  bool
 	}{
-		{"push", verified, true},
-		{"pull_request", verified, true},
-		{"release", "release event doesn't match rules [push pull_request]", false},
+		{"push", filterSucceeded, true},
+		{"pull_request", filterSucceeded, true},
+		{"release", "release event doesn't match filters [push pull_request]", false},
 	}
 
 	for _, test := range tests {
-		gotMessage, gotResult := events(workflow, &github.Event{Name: test.eventName})
+		gotResult, gotMessage := events(workflow, &github.Event{Name: test.eventName})
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}
@@ -51,13 +51,13 @@ func TestRepository(t *testing.T) {
 		wantMessage string
 		wantResult  bool
 	}{
-		{"my-org/my-repo", verified, true},
-		{"my-org/other-repo", "event's repository my-org/other-repo doesn't match workflow's repository my-org/my-repo", false},
-		{"other-org/my-repo", "event's repository other-org/my-repo doesn't match workflow's repository my-org/my-repo", false},
+		{"my-org/my-repo", filterSucceeded, true},
+		{"my-org/other-repo", "repository my-org/other-repo doesn't match workflow's repository my-org/my-repo", false},
+		{"other-org/my-repo", "repository other-org/my-repo doesn't match workflow's repository my-org/my-repo", false},
 	}
 
 	for _, test := range tests {
-		gotMessage, gotResult := repository(workflow, &github.Event{Repository: test.repository})
+		gotResult, gotMessage := repository(workflow, &github.Event{Repository: test.repository})
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}
@@ -83,15 +83,15 @@ func TestBranches(t *testing.T) {
 		wantMessage string
 		wantResult  bool
 	}{
-		{"main", "push", verified, true},
-		{"staging", "pull_request", verified, true},
-		{"staging-john-patch1", "push", verified, true},
-		{"dev", "pull_request", "event's branch dev doesn't match rules [main staging*]", false},
-		{"", "release", "release event isn't supported", true},
+		{"main", "push", filterSucceeded, true},
+		{"staging", "pull_request", filterSucceeded, true},
+		{"staging-john-patch1", "push", filterSucceeded, true},
+		{"dev", "pull_request", "branch dev doesn't match filters [main staging*]", false},
+		{"", "release", "skipped because release event isn't supported", true},
 	}
 
 	for _, test := range tests {
-		gotMessage, gotResult := branches(workflow, &github.Event{Name: test.eventName, Branch: test.branch})
+		gotResult, gotMessage := branches(workflow, &github.Event{Name: test.eventName, Branch: test.branch})
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}
@@ -117,16 +117,16 @@ func TestPaths(t *testing.T) {
 		wantMessage string
 		wantResult  bool
 	}{
-		{[]string{"pkg/x/y.go"}, "push", verified, true},
-		{[]string{"pkg/x/y.go", "README.md"}, "push", verified, true},
-		{[]string{"scripts/build.sh", "README.md"}, "pull_request", verified, true},
-		{[]string{"README.md"}, "push", "event's modified files don't match rules [**/*.go **/*.sh]", false},
-		{[]string{"README.md"}, "pull_request", "event's modified files don't match rules [**/*.go **/*.sh]", false},
-		{[]string{}, "release", "release event isn't supported", true},
+		{[]string{"pkg/x/y.go"}, "push", filterSucceeded, true},
+		{[]string{"pkg/x/y.go", "README.md"}, "push", filterSucceeded, true},
+		{[]string{"scripts/build.sh", "README.md"}, "pull_request", filterSucceeded, true},
+		{[]string{"README.md"}, "push", "modified files don't match filters [**/*.go **/*.sh]", false},
+		{[]string{"README.md"}, "pull_request", "modified files don't match filters [**/*.go **/*.sh]", false},
+		{[]string{}, "release", "skipped because release event isn't supported", true},
 	}
 
 	for _, test := range tests {
-		gotMessage, gotResult := paths(workflow, &github.Event{Name: test.eventName, ModifiedFiles: test.files})
+		gotResult, gotMessage := paths(workflow, &github.Event{Name: test.eventName, ModifiedFiles: test.files})
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}
@@ -137,7 +137,7 @@ func TestPaths(t *testing.T) {
 	}
 }
 
-func TestVerifyRules(t *testing.T) {
+func TestVerifyFilterCriteria(t *testing.T) {
 	workflow := &workflowsv1alpha1.Workflow{
 		Spec: workflowsv1alpha1.WorkflowSpec{
 			Repository: &workflowsv1alpha1.Repository{Owner: "my-org",
@@ -157,11 +157,11 @@ func TestVerifyRules(t *testing.T) {
 		wantMessage string
 		wantResult  bool
 	}{
-		{"push", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, accepted, true},
-		{"pull_request", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, "Workflow has been rejected because pull_request event doesn't match rules [push]", false},
-		{"push", "my-org/other-repo", "main", []string{"pkg/x/y.go"}, "Workflow has been rejected because event's repository my-org/other-repo doesn't match workflow's repository my-org/my-repo", false},
-		{"push", "my-org/my-repo", "dev", []string{"pkg/x/y.go"}, "Workflow has been rejected because event's branch dev doesn't match rules [main]", false},
-		{"push", "my-org/my-repo", "main", []string{"README.md"}, "Workflow has been rejected because event's modified files don't match rules [**/*.go]", false},
+		{"push", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, workflowAccepted, true},
+		{"pull_request", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: pull_request event doesn't match filters [push]", false},
+		{"push", "my-org/other-repo", "main", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: repository my-org/other-repo doesn't match workflow's repository my-org/my-repo", false},
+		{"push", "my-org/my-repo", "dev", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: branch dev doesn't match filters [main]", false},
+		{"push", "my-org/my-repo", "main", []string{"README.md"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: modified files don't match filters [**/*.go]", false},
 	}
 
 	for _, test := range tests {
@@ -170,7 +170,7 @@ func TestVerifyRules(t *testing.T) {
 			Branch:        test.branch,
 			ModifiedFiles: test.files,
 		}
-		gotMessage, gotResult := VerifyRules(workflow, event)
+		gotResult, gotMessage := VerifyCriteria(workflow, event)
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}

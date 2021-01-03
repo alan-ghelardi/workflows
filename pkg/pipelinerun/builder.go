@@ -3,8 +3,7 @@ package pipelinerun
 import (
 	"fmt"
 
-	"github.com/google/go-github/v33/github"
-
+	"github.com/nubank/workflows/pkg/github"
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"

@@ -10,78 +10,82 @@ import (
 )
 
 const (
-	accepted = "Workflow has been accepted"
+	workflowAccepted = "Workflow accepted"
 
-	verified = "Rule successfully verified"
+	filterSucceeded = "filter succeeded"
 )
 
-// Filter is a function that takes a workflow and a Github event, verifies
-// whether the event satisfies a filtering rule and returns a message and a
-// boolean indicating results of this verification.
-type Filter func(*workflowsv1alpha1.Workflow, *github.Event) (string, bool)
+// Filter is a function that takes a workflow and a Github event and returns a
+// boolean value indicating whether the event satisfies filters declared in the
+// workflow along with a message explaining the result.
+type Filter func(*workflowsv1alpha1.Workflow, *github.Event) (bool, string)
 
 // events verifies whether events configured in the workflow match the name of
 // the incoming Github event.
-func events(workflow *workflowsv1alpha1.Workflow, event *github.Event) (string, bool) {
+func events(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	for _, eventName := range workflow.Spec.Events {
 		if eventName == event.Name {
-			return verified, true
+			return true, filterSucceeded
 		}
 	}
-	return fmt.Sprintf("%s event doesn't match rules %+v", event.Name, workflow.Spec.Events), false
+	return false, fmt.Sprintf("%s event doesn't match filters %+v", event.Name, workflow.Spec.Events)
 }
 
 // repository verifies whether the repository associated to the workflow matches
 // the repository that originated the Github event.
-func repository(workflow *workflowsv1alpha1.Workflow, event *github.Event) (string, bool) {
+func repository(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	if event.Repository == workflow.Spec.Repository.String() {
-		return verified, true
+		return true, filterSucceeded
 	}
-	return fmt.Sprintf("event's repository %s doesn't match workflow's repository %s", event.Repository, workflow.Spec.Repository), false
+	return false, fmt.Sprintf("repository %s doesn't match workflow's repository %s", event.Repository, workflow.Spec.Repository)
 }
 
 // branches verifies whether branches configured in the workflow match the
 // branch present in the Github event. This filter is only applied on push and
 // pull_request events.
-func branches(workflow *workflowsv1alpha1.Workflow, event *github.Event) (string, bool) {
+func branches(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	if event.Name != "push" && event.Name != "pull_request" {
-		return fmt.Sprintf("%s event isn't supported", event.Name), true
+		return true, fmt.Sprintf("skipped because %s event isn't supported", event.Name)
 	}
 
 	for _, branch := range workflow.Spec.Branches {
 		globPattern, err := glob.Compile(branch)
 		if err != nil {
-			return err.Error(), false
+			return false, err.Error()
 		}
 
 		if globPattern.Match(event.Branch) {
-			return verified, true
+			return true, filterSucceeded
 		}
 	}
-	return fmt.Sprintf("event's branch %s doesn't match rules %+v", event.Branch, workflow.Spec.Branches), false
+	return false, fmt.Sprintf("branch %s doesn't match filters %+v", event.Branch, workflow.Spec.Branches)
 }
 
 // paths verifies whether paths configured in the workflow match modified files
 // present in the Github event. This filter is only applied on push and
 // pull_request events.
-func paths(workflow *workflowsv1alpha1.Workflow, event *github.Event) (string, bool) {
+func paths(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	if event.Name != "push" && event.Name != "pull_request" {
-		return fmt.Sprintf("%s event isn't supported", event.Name), true
+		return true, fmt.Sprintf("skipped because %s event isn't supported", event.Name)
+	}
+
+	if len(workflow.Spec.Paths) == 0 {
+		return true, "skipped because there are no configured paths"
 	}
 
 	for _, path := range workflow.Spec.Paths {
 		globPattern, err := glob.Compile(path)
 		if err != nil {
-			return err.Error(), false
+			return false, err.Error()
 		}
 
 		for _, file := range event.ModifiedFiles {
 			if globPattern.Match(file) {
-				return verified, true
+				return true, filterSucceeded
 			}
 		}
 	}
-	return fmt.Sprintf("event's modified files don't match rules %+v", workflow.Spec.Paths), false
+	return false, fmt.Sprintf("modified files don't match filters %+v", workflow.Spec.Paths)
 }
 
 // filters is a chain of filter funcs.
@@ -91,13 +95,13 @@ var filters = []Filter{events,
 	paths,
 }
 
-// VerifyRules verifies all filtering rules declared in the supplied workflow,
-// by validating them against the incoming Github event.
-func VerifyRules(workflow *workflowsv1alpha1.Workflow, event *github.Event) (string, bool) {
+// VerifyCriteria verifies all filter criteria declared in the supplied
+// workflow, by validating them against the incoming Github event.
+func VerifyCriteria(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	for _, filter := range filters {
-		if message, accepted := filter(workflow, event); !accepted {
-			return fmt.Sprintf("Workflow has been rejected because %s", message), false
+		if ok, message := filter(workflow, event); !ok {
+			return false, fmt.Sprintf("Workflow was rejected because Github event doesn't satisfy filter criteria: %s", message)
 		}
 	}
-	return accepted, true
+	return true, workflowAccepted
 }

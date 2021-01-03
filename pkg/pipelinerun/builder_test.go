@@ -18,14 +18,20 @@ import (
 
 func newWorkflowWithExistingTasks() *workflowsv1alpha1.Workflow {
 	return &workflowsv1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-1",
-			Namespace: "dev"},
-		Spec: workflowsv1alpha1.WorkflowSpec{Description: "FIXME",
-			Tasks: map[string]*workflowsv1alpha1.Task{"build": &workflowsv1alpha1.Task{Use: "golang-builder",
-				ServiceAccount: "sa-1",
-			},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-1",
+			Namespace: "dev",
+		},
+		Spec: workflowsv1alpha1.WorkflowSpec{
+			Description: "FIXME",
+			Tasks: map[string]*workflowsv1alpha1.Task{
+				"build": &workflowsv1alpha1.Task{
+					Use:            "golang-builder",
+					ServiceAccount: "sa-1",
+				},
 
-				"test": &workflowsv1alpha1.Task{Use: "golang-testing",
+				"test": &workflowsv1alpha1.Task{
+					Use:            "golang-testing",
 					ServiceAccount: "sa-2",
 					PodTemplate:    &pipelinev1beta1.PodTemplate{NodeSelector: map[string]string{"x": "y"}},
 					Retries:        2,
@@ -38,24 +44,31 @@ func newWorkflowWithExistingTasks() *workflowsv1alpha1.Workflow {
 
 func newWorkflowWithEmbeddedTasks() *workflowsv1alpha1.Workflow {
 	return &workflowsv1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-2",
-			Namespace: "dev"},
-		Spec: workflowsv1alpha1.WorkflowSpec{Tasks: map[string]*workflowsv1alpha1.Task{"lint": &workflowsv1alpha1.Task{Env: map[string]string{"ENV_VAR_1": "x"},
-			Steps: []workflowsv1alpha1.EmbeddedStep{{Name: "golangci-lint",
-				Image: "golang",
-				Run:   "golangci-lint run",
-			},
-			},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-2",
+			Namespace: "dev",
 		},
+		Spec: workflowsv1alpha1.WorkflowSpec{
+			Tasks: map[string]*workflowsv1alpha1.Task{
+				"lint": &workflowsv1alpha1.Task{Env: map[string]string{"ENV_VAR_1": "x"},
+					Steps: []workflowsv1alpha1.EmbeddedStep{
+						{Name: "golangci-lint",
+							Image: "golang",
+							Run:   "golangci-lint run",
+						},
+					},
+				},
 
-			"test": &workflowsv1alpha1.Task{Resources: basicContainerResources(),
-				Steps: []workflowsv1alpha1.EmbeddedStep{{Image: "golang",
-					Env: map[string]string{"ENV_VAR_2": "y"},
-					Run: "go test ./...",
-				},
+				"test": &workflowsv1alpha1.Task{
+					Resources: basicContainerResources(),
+					Steps: []workflowsv1alpha1.EmbeddedStep{
+						{Image: "golang",
+							Env: map[string]string{"ENV_VAR_2": "y"},
+							Run: "go test ./...",
+						},
+					},
 				},
 			},
-		},
 		},
 	}
 }
@@ -70,9 +83,19 @@ func basicContainerResources() corev1.ResourceList {
 
 func newMinimalWorkflow() *workflowsv1alpha1.Workflow {
 	return &workflowsv1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-3",
-			Namespace: "dev"},
-		Spec: workflowsv1alpha1.WorkflowSpec{Tasks: map[string]*workflowsv1alpha1.Task{"hello": &workflowsv1alpha1.Task{Steps: []workflowsv1alpha1.EmbeddedStep{{Run: "echo Hello!"}}}}},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-3",
+			Namespace: "dev",
+		},
+		Spec: workflowsv1alpha1.WorkflowSpec{
+			Tasks: map[string]*workflowsv1alpha1.Task{
+				"hello": &workflowsv1alpha1.Task{
+					Steps: []workflowsv1alpha1.EmbeddedStep{
+						{Run: "echo Hello!"},
+					},
+				},
+			},
+		},
 	}
 }
 
