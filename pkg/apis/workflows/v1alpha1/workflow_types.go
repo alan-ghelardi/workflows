@@ -53,6 +53,71 @@ var (
 	_ duckv1.KRShaped = (*Workflow)(nil)
 )
 
+// GetRepositories returns the list of Github repositories associated to this workflow.
+func (w *Workflow) GetRepositories() []Repository {
+	repos := []Repository{*w.Spec.Repository}
+	repos = append(repos, w.Spec.SecondaryRepositories...)
+	return repos
+}
+
+const (
+	webhookIDFormat   = "workflows.dev/github.%s.%s.webhook-id"
+	deployKeyIDFormat = "workflows.dev/github.%s.%s.key-id"
+)
+
+// GetDeployKeyID returns the id of a deploy key associated to the repository in
+// question or nil if no deploy key has been created yet.
+func (w *Workflow) GetDeployKeyID(repo *Repository) *int64 {
+	key := fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)
+	value, exists := w.ObjectMeta.Annotations[key]
+
+	if exists {
+		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return &id
+		}
+	}
+	return nil
+}
+
+// SetDeployKeyID stores the deploy key id associated to the supplied repository as a
+// metadata in the workflow in question.
+func (w *Workflow) SetDeployKeyID(repo *Repository, id int64) {
+	w.ObjectMeta.Annotations[fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
+}
+
+// GetWebhookID returns the id of a Webhook associated to the repository in
+// question or nil if no Webhook has been created yet.
+func (w *Workflow) GetWebhookID() *int64 {
+	repo := w.Spec.Repository
+	key := fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)
+	value, exists := w.ObjectMeta.Annotations[key]
+
+	if exists {
+		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return &id
+		}
+	}
+	return nil
+}
+
+// SetWebhookID stores the Webhook id associated to the supplied repository as a
+// metadata in the workflow in question.
+func (w *Workflow) SetWebhookID(id int64) {
+	repo := w.Spec.Repository
+	w.ObjectMeta.Annotations[fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
+}
+
+// GetDeployKeysSecretName returns the name of the private SSH key associated to
+// this workflow.
+func (w *Workflow) GetDeployKeysSecretName() string {
+	return fmt.Sprintf("%s-ssh-private-keys", w.GetName())
+}
+
+// GetWebhookSecretName returns the name of the Webhook secret associated to this workflow.
+func (w *Workflow) GetWebhookSecretName() string {
+	return fmt.Sprintf("%s-webhook-secret", w.GetName())
+}
+
 // WorkflowSpec defines the desired state of Workflow objects.
 type WorkflowSpec struct {
 
@@ -97,10 +162,39 @@ type Repository struct {
 	// The repository's owner.
 	Owner string `json:"owner"`
 
+	// Default branch for this repository.
+	// +optional
+	DefaultBranch string `json:"defaultBranch,omitempty"`
+
 	// Authorizes task runs that make up this workflow to access the
 	// repository in question.
 	// +optional
 	DeployKey *DeployKey `json:"deployKey,omitempty"`
+
+	// Whether or not the repository is private.
+	// +optional
+	Private bool `json:"private,omitempty"`
+}
+
+// GetSSHPrivateKeyName returns the name of the SSH private key associated to this repository.
+func (r *Repository) GetSSHPrivateKeyName() string {
+	if r.DeployKey == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s_id_rsa", r.Name)
+}
+
+// IsReadOnlyDeployKey returns true if the associated deploy key is read only or false otherwise.
+func (r *Repository) IsReadOnlyDeployKey() bool {
+	if r.DeployKey == nil {
+		return true
+	}
+	return r.DeployKey.ReadOnly
+}
+
+// String satisfies fmt.Stringer interface.
+func (r *Repository) String() string {
+	return fmt.Sprintf("%s/%s", r.Owner, r.Name)
 }
 
 // Webhook contains information about a Github Webhook that triggers the workflow
@@ -184,10 +278,22 @@ type EmbeddedStep struct {
 	// +optional
 	Run string `json:"run,omitempty"`
 
-	// Selects a built-in step to run as part of the task in question.
+	// Selects a built-in action to run as part of the task in question.
 	// +optional
-	Use string `json:"use,omitempty"`
+	Use BuiltInAction `json:"use,omitempty"`
+
+	// Step's working directory.
+	// +optional
+	WorkingDir string `json:"workingDir,omitempty"`
 }
+
+// BuiltInAction represents a set of comon actions in CI pipelines (such as
+// checking out code) which are provided out of the box by workflows.
+type BuiltInAction string
+
+const (
+	CheckoutAction BuiltInAction = "checkout"
+)
 
 // WorkflowStatus defines the observed state of Workflow
 type WorkflowStatus struct {
@@ -199,77 +305,6 @@ const (
 	// runtime resources, and becomes true when those resources are ready.
 	WorkflowConditionReady = apis.ConditionReady
 )
-
-// IsReadOnlyDeployKey returns true if the associated deploy key is read only or false otherwise.
-func (r *Repository) IsReadOnlyDeployKey() bool {
-	if r.DeployKey == nil {
-		return true
-	}
-	return r.DeployKey.ReadOnly
-}
-
-// String satisfies fmt.Stringer interface.
-func (r *Repository) String() string {
-	return fmt.Sprintf("%s/%s", r.Owner, r.Name)
-}
-
-// GetWebhookSecretName returns the name of the Webhook secret associated to this workflow.
-func (w *Workflow) GetWebhookSecretName() string {
-	return fmt.Sprintf("%s-webhook-secret", w.GetName())
-}
-
-// GetDeployKeysSecretName returns the name of the private SSH key associated to
-// this workflow.
-func (w *Workflow) GetDeployKeysSecretName() string {
-	return fmt.Sprintf("%s-private-ssh-key", w.GetName())
-}
-
-const (
-	webhookIDFormat   = "workflows.dev/github.%s.%s.webhook-id"
-	deployKeyIDFormat = "workflows.dev/github.%s.%s.deploy-key-id"
-)
-
-// GetWebhookID returns the id of a Webhook associated to the repository in
-// question or nil if no Webhook has been created yet.
-func (w *Workflow) GetWebhookID() *int64 {
-	repo := w.Spec.Repository
-	key := fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)
-	value, exists := w.ObjectMeta.Annotations[key]
-
-	if exists {
-		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
-			return &id
-		}
-	}
-	return nil
-}
-
-// SetWebhookID stores the Webhook id associated to the supplied repository as a
-// metadata in the workflow in question.
-func (w *Workflow) SetWebhookID(id int64) {
-	repo := w.Spec.Repository
-	w.ObjectMeta.Annotations[fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
-}
-
-// GetDeployKeyID returns the id of a deploy key associated to the repository in
-// question or nil if no deploy key has been created yet.
-func (w *Workflow) GetDeployKeyID(repo *Repository) *int64 {
-	key := fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)
-	value, exists := w.ObjectMeta.Annotations[key]
-
-	if exists {
-		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
-			return &id
-		}
-	}
-	return nil
-}
-
-// SetDeployKeyID stores the deploy key id associated to the supplied repository as a
-// metadata in the workflow in question.
-func (w *Workflow) SetDeployKeyID(repo *Repository, id int64) {
-	w.ObjectMeta.Annotations[fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
-}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

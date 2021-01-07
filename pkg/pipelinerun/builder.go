@@ -3,8 +3,8 @@ package pipelinerun
 import (
 	"fmt"
 
-	"github.com/nubank/workflows/pkg/github"
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
+	"github.com/nubank/workflows/pkg/github"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,13 +15,17 @@ const defaultImage = "gcr.io/google-containers/busybox"
 
 // Builder builds Tekton PipelineRun objects.
 type Builder struct {
-	workflow *workflowsv1alpha1.Workflow
-	event    *github.Event
+	builtInActions []BuiltInAction
+	event          *github.Event
+	workflow       *workflowsv1alpha1.Workflow
 }
 
 // From returns a new Builder object that builds Tekton PipelineRuns from the provided Workflow.
 func From(workflow *workflowsv1alpha1.Workflow) *Builder {
-	return &Builder{workflow: workflow}
+	return &Builder{
+		builtInActions: make([]BuiltInAction, 0),
+		workflow:       workflow,
+	}
 }
 
 // And returns the same Builder object with the supplied Event object set.
@@ -39,12 +43,23 @@ func (b *Builder) Build() *pipelinev1beta1.PipelineRun {
 		},
 	}
 
+	// Let built-in actions to modify the PipelineRun resource.
+	for _, action := range b.builtInActions {
+		action.ModifyPipelineRun(pipelineRun)
+	}
+
 	return pipelineRun
 }
 
 func (b *Builder) buildPipelineSpec() *pipelinev1beta1.PipelineSpec {
-	pipelineSpec := &pipelinev1beta1.PipelineSpec{Description: b.workflow.Spec.Description,
-		Tasks: b.buildPipelineTasks(),
+	pipelineSpec := &pipelinev1beta1.PipelineSpec{
+		Description: b.workflow.Spec.Description,
+		Tasks:       b.buildPipelineTasks(),
+	}
+
+	// Let built-in actions to modify the PipelineSpec
+	for _, action := range b.builtInActions {
+		action.ModifyPipelineSpec(pipelineSpec)
 	}
 
 	return pipelineSpec
@@ -71,6 +86,11 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 
 	pipelineTask.Timeout = task.Timeout
 
+	// Let built-in actions to modify the pipeline task.
+	for _, action := range b.builtInActions {
+		action.ModifyPipelineTask(&pipelineTask)
+	}
+
 	return pipelineTask
 }
 
@@ -82,10 +102,22 @@ func (b *Builder) buildEmbededTask(task *workflowsv1alpha1.Task) *pipelinev1beta
 	}
 	embededTask.Steps = make([]pipelinev1beta1.Step, 0)
 
-	for _, step := range task.Steps {
-		embededTask.Steps = append(embededTask.Steps, b.buildStep(step))
+	for _, embeddedStep := range task.Steps {
+		var step pipelinev1beta1.Step
+
+		if embeddedStep.Use != "" {
+			step = b.invokeBuiltInAction(embeddedStep)
+		} else {
+			step = b.buildStep(embeddedStep)
+		}
+
+		embededTask.Steps = append(embededTask.Steps, step)
 	}
 
+	// Let built-in actions to modify the embedded task
+	for _, action := range b.builtInActions {
+		action.ModifyEmbeddedTask(embededTask)
+	}
 	return embededTask
 }
 
@@ -130,7 +162,28 @@ set -o nounset
 		step.Env = b.buildEnv(embeddedStep.Env)
 	}
 
+	step.WorkingDir = embeddedStep.WorkingDir
+
 	return step
+}
+
+func (b *Builder) invokeBuiltInAction(embeddedStep workflowsv1alpha1.EmbeddedStep) pipelinev1beta1.Step {
+	var action BuiltInAction
+
+	switch embeddedStep.Use {
+	case workflowsv1alpha1.CheckoutAction:
+		action = &Checkout{
+			event:    b.event,
+			workflow: b.workflow,
+		}
+
+	default:
+		panic(fmt.Errorf("Unrecognized built-in action %s", embeddedStep.Use))
+	}
+
+	b.builtInActions = append(b.builtInActions, action)
+
+	return action.BuildStep(embeddedStep)
 }
 
 func (b *Builder) buildEnv(env map[string]string) []corev1.EnvVar {
