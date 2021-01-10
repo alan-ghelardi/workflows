@@ -79,7 +79,7 @@ func paths(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, str
 			return false, err.Error()
 		}
 
-		for _, file := range event.ModifiedFiles {
+		for _, file := range event.Changes {
 			if globPattern.Match(file) {
 				return true, filterSucceeded
 			}

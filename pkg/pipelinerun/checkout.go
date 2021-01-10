@@ -82,13 +82,13 @@ func buildCheckoutStep(embeddedStep workflowsv1alpha1.EmbeddedStep, repo *workfl
 		Container: corev1.Container{
 			Image: gitInitImage,
 		},
-		Script: renderScript(options),
+		Script: renderCheckoutScript(options),
 	}
 
 	if embeddedStep.Name != "" {
 		step.Name = embeddedStep.Name
 	} else {
-		step.Name = "checkout-project"
+		step.Name = fmt.Sprintf("checkout-%s", repo.Name)
 	}
 
 	if repo.Private {
@@ -134,7 +134,7 @@ func resultName(repo *workflowsv1alpha1.Repository) string {
 	return fmt.Sprintf("%s-commit", repo.Name)
 }
 
-func renderScript(options CheckoutOptions) string {
+func renderCheckoutScript(options CheckoutOptions) string {
 	var buffer bytes.Buffer
 
 	err := checkoutScript.ExecuteTemplate(&buffer, "checkout", options)

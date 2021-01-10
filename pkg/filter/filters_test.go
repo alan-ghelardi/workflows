@@ -126,7 +126,7 @@ func TestPaths(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		gotResult, gotMessage := paths(workflow, &github.Event{Name: test.eventName, ModifiedFiles: test.files})
+		gotResult, gotMessage := paths(workflow, &github.Event{Name: test.eventName, Changes: test.files})
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}
@@ -166,9 +166,9 @@ func TestVerifyFilterCriteria(t *testing.T) {
 
 	for _, test := range tests {
 		event := &github.Event{Name: test.eventName,
-			Repository:    test.repo,
-			Branch:        test.branch,
-			ModifiedFiles: test.files,
+			Repository: test.repo,
+			Branch:     test.branch,
+			Changes:    test.files,
 		}
 		gotResult, gotMessage := VerifyCriteria(workflow, event)
 		if test.wantMessage != gotMessage {
