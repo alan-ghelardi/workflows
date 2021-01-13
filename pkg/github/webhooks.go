@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"reflect"
@@ -11,7 +10,7 @@ import (
 
 	"github.com/google/go-github/v33/github"
 	"github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
-	securerandom "github.com/theckman/go-securerandom"
+	"github.com/nubank/workflows/pkg/secret"
 )
 
 // WebhookSyncer keeps Github Webhooks in sync to the desired state declared in
@@ -20,14 +19,20 @@ type WebhookSyncer struct {
 	githubClient *github.Client
 }
 
+// Webhook contains information about a created or updated Github Webhook.
+type Webhook struct {
+	ID     int64
+	Secret []byte
+}
+
 // Sync creates or updates a Github Webhook.
-func (w *WebhookSyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow) (*SyncResult, error) {
+func (w *WebhookSyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
 	var (
-		id     *int64
-		err    error
-		repo   = workflow.Spec.Repository
-		hook   *github.Hook
-		result = EmptySyncResult()
+		id         *int64
+		err        error
+		githubHook *github.Hook
+		repo       = workflow.Spec.Repository
+		webhook    *Webhook
 	)
 
 	logger := logging.FromContext(ctx).With("repository", repo)
@@ -35,37 +40,37 @@ func (w *WebhookSyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow) (
 	id = workflow.GetWebhookID()
 	if id == nil {
 		logger.Info("There are no recognized webhooks associated to the workflow. Creating a new one")
-		result, err = w.createWebhook(ctx, workflow)
+		webhook, err = w.createWebhook(ctx, workflow)
 		if err == nil {
-			workflow.SetWebhookID(result.Entries[0].ID)
+			workflow.SetWebhookID(webhook.ID)
 		}
-		return result, err
+		return webhook, err
 	}
 
-	hook, err = w.getWebhook(ctx, workflow, *id)
+	githubHook, err = w.getWebhook(ctx, workflow, *id)
 	if IsNotFound(err) {
 		logger.Infow("Unable to find Webhook for supplied id. It might have been deleted by mistaken. Creating a new one", "webhook-id", *id)
-		result, err = w.createWebhook(ctx, workflow)
+		webhook, err = w.createWebhook(ctx, workflow)
 		if err == nil {
-			workflow.SetWebhookID(result.Entries[0].ID)
+			workflow.SetWebhookID(webhook.ID)
 		}
-		return result, err
+		return webhook, err
 	}
 
 	// Unexpected error getting the Webhook
 	if err != nil {
-		return result, err
+		return webhook, err
 	}
 
-	if w.changedSinceLastSync(workflow, hook) {
+	if w.changedSinceLastSync(workflow, githubHook) {
 		logger.Infow("Webhook and workflow settings are out of sync. Updating Webhook", "webhook-id", *id)
-		result, err = w.updateWebhook(ctx, workflow, *id)
-		return result, err
+		webhook, err = w.updateWebhook(ctx, workflow, *id)
+		return webhook, err
 	}
 
 	logger.Infow("Webhook settings are up to date", "webhook-id", *id)
 
-	return result, nil
+	return webhook, nil
 }
 
 // getWebhook returns the Webhook associated to the supplied workflow.
@@ -91,25 +96,22 @@ func (w *WebhookSyncer) getWebhook(ctx context.Context, workflow *v1alpha1.Workf
 // since the last sync or false otherwise.
 func (w *WebhookSyncer) changedSinceLastSync(workflow *v1alpha1.Workflow, hook *github.Hook) bool {
 	return !hook.GetActive() ||
-		!reflect.DeepEqual(workflow.Spec.Webhook.Events, hook.Events) ||
+		!reflect.DeepEqual(workflow.Spec.Events, hook.Events) ||
 		workflow.Spec.Webhook.URL != hook.Config["url"] ||
 		hook.Config["content_type"] != "json" ||
 		hook.Config["insecure_ssl"] != "0"
 }
 
 // createWebhook creates a new Github Webhook.
-func (w *WebhookSyncer) createWebhook(ctx context.Context, workflow *v1alpha1.Workflow) (*SyncResult, error) {
+func (w *WebhookSyncer) createWebhook(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
 	repo := workflow.Spec.Repository
 
-	secret, err := securerandom.Bytes(94)
-	if err != nil {
-		return nil, fmt.Errorf("unable to generate Webhook secret token for repository %s: %w", repo, err)
-	}
+	secretToken := secret.GenerateRandomToken()
 
 	hook, _, err := w.githubClient.Repositories.CreateHook(ctx,
 		repo.Owner,
 		repo.Name,
-		w.newHook(workflow, secret))
+		w.newHook(workflow, github.String(secretToken)))
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Github Webhook for repository %s: %w", repo, err)
@@ -119,23 +121,16 @@ func (w *WebhookSyncer) createWebhook(ctx context.Context, workflow *v1alpha1.Wo
 		"repository", repo,
 		"webhook-id", hook.ID)
 
-	return newSyncResult(*hook.ID, workflow.Spec.Repository, Created, secret), nil
-}
-
-// newSyncResult is a helper function to create a SyncResult with a single entry.
-func newSyncResult(id int64, repo *v1alpha1.Repository, action ActionType, secret []byte) *SyncResult {
-	result := EmptySyncResult()
-	return result.Add(SyncResultEntry{ID: id,
-		Repository: repo,
-		Action:     action,
-		Secret:     secret,
-	})
+	return &Webhook{
+		ID:     *hook.ID,
+		Secret: []byte(secretToken),
+	}, nil
 }
 
 // newHook returns a new Hook object.
-func (w *WebhookSyncer) newHook(workflow *v1alpha1.Workflow, secret []byte) *github.Hook {
+func (w *WebhookSyncer) newHook(workflow *v1alpha1.Workflow, secret *string) *github.Hook {
 	hook := &github.Hook{Active: github.Bool(true),
-		Events: workflow.Spec.Webhook.Events,
+		Events: workflow.Spec.Events,
 		Config: map[string]interface{}{
 			"url":          workflow.Spec.Webhook.URL,
 			"content_type": "json",
@@ -144,14 +139,14 @@ func (w *WebhookSyncer) newHook(workflow *v1alpha1.Workflow, secret []byte) *git
 	}
 
 	if secret != nil {
-		hook.Config["secret"] = base64.StdEncoding.EncodeToString(secret)
+		hook.Config["secret"] = *secret
 	}
 
 	return hook
 }
 
 // updateWebhook updates an existing Github Webhook.
-func (w *WebhookSyncer) updateWebhook(ctx context.Context, workflow *v1alpha1.Workflow, id int64) (*SyncResult, error) {
+func (w *WebhookSyncer) updateWebhook(ctx context.Context, workflow *v1alpha1.Workflow, id int64) (*Webhook, error) {
 	repo := workflow.Spec.Repository
 	hook, _, err := w.githubClient.Repositories.EditHook(ctx,
 		repo.Owner,
@@ -168,7 +163,36 @@ func (w *WebhookSyncer) updateWebhook(ctx context.Context, workflow *v1alpha1.Wo
 		"repository", repo,
 		"webhook-id", id)
 
-	return newSyncResult(*hook.ID, repo, Updated, nil), nil
+	return &Webhook{ID: *hook.ID}, nil
+}
+
+// Delete deletes the Webhook associated to the workflow in question.
+func (w *WebhookSyncer) Delete(ctx context.Context, workflow *v1alpha1.Workflow) error {
+	var (
+		id   *int64
+		err  error
+		repo = workflow.Spec.Repository
+	)
+
+	logger := logging.FromContext(ctx).With("repository", repo)
+
+	id = workflow.GetWebhookID()
+	if id == nil {
+		return fmt.Errorf("Unable to delete Webhook because its identifier is unknown")
+	}
+
+	_, err = w.githubClient.Repositories.DeleteHook(ctx,
+		repo.Owner,
+		repo.Name,
+		*id)
+
+	if err != nil {
+		return fmt.Errorf("Error deleting Github Webhook: %w", err)
+	}
+
+	logger.Infow("Webhook has been successfully deleted", "repository", repo, "webhook-id", id)
+
+	return nil
 }
 
 // webhookSyncerKey is used to store WebhookSyncer objects into context.Context.
@@ -183,9 +207,9 @@ func WithWebhookSyncer(ctx context.Context, client *github.Client) context.Conte
 // GetWebhookSyncerOrDie returns a WebhookSyncer instance from the supplied
 // context or dies by calling log.fatal if the context doesn't contain a
 // WebhookSyncer object.
-func GetWebhookSyncerOrDie(ctx context.Context) Syncer {
-	if syncer, ok := ctx.Value(webhookSyncerKey{}).(Syncer); ok {
-		return syncer
+func GetWebhookSyncerOrDie(ctx context.Context) *WebhookSyncer {
+	if webhookSyncer, ok := ctx.Value(webhookSyncerKey{}).(*WebhookSyncer); ok {
+		return webhookSyncer
 	}
 	log.Fatal("Unable to get a valid WebhookSyncer instance from context")
 	return nil

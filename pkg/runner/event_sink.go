@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/nubank/workflows/pkg/filter"
@@ -17,7 +16,7 @@ import (
 
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	"github.com/nubank/workflows/pkg/pipelinerun"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/nubank/workflows/pkg/secret"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -71,7 +70,7 @@ func (e *EventSink) RunWorkflow(ctx context.Context, req *Request) Response {
 		}
 	}
 
-	secret, err := e.KubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Get(ctx, workflow.GetWebhookSecretName(), metav1.GetOptions{})
+	webhookSecret, err := e.KubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Get(ctx, workflow.GetWebhookSecretName(), metav1.GetOptions{})
 	if err != nil {
 		logger.Error(err, "Error reading Webhook secret")
 		return Response{
@@ -80,7 +79,7 @@ func (e *EventSink) RunWorkflow(ctx context.Context, req *Request) Response {
 		}
 	}
 
-	webhookSecret, err := e.readWebhookSecret(secret)
+	webhookSecretToken, err := secret.GetSecretToken(webhookSecret)
 	if err != nil {
 		logger.Error(err, "Unable to read Webhook secret")
 		return Response{
@@ -89,7 +88,7 @@ func (e *EventSink) RunWorkflow(ctx context.Context, req *Request) Response {
 		}
 	}
 
-	if valid, message := req.Event.VerifySignature(webhookSecret); !valid {
+	if valid, message := req.Event.VerifySignature(webhookSecretToken); !valid {
 		logger.Info(message)
 		return Response{
 			Status:  403,
@@ -124,20 +123,4 @@ func (e *EventSink) RunWorkflow(ctx context.Context, req *Request) Response {
 	return Response{Status: 201,
 		Message: fmt.Sprintf("PipelineRun %s has been successfully created", createdPipelineRun.GetName()),
 	}
-}
-
-// readWebhookSecret returns the decoded representation of the Webhook secret held by the supplied Secret object.
-func (e *EventSink) readWebhookSecret(secret *corev1.Secret) ([]byte, error) {
-	webhookSecret, exists := secret.Data["secret-token"]
-	if !exists {
-		return nil, fmt.Errorf("Key secret-token is missing in Secret object %s", types.NamespacedName{Namespace: secret.GetNamespace(), Name: secret.GetName()})
-	}
-
-	decodedWebhookSecret := make([]byte, base64.StdEncoding.DecodedLen(len(webhookSecret)))
-	bytesWritten, err := base64.StdEncoding.Decode(decodedWebhookSecret, webhookSecret)
-	if err != nil {
-		return nil, fmt.Errorf("Error decoding Webhook secret from Secret %s: %w", types.NamespacedName{Namespace: secret.GetNamespace(), Name: secret.GetName()}, err)
-	}
-
-	return decodedWebhookSecret[:bytesWritten], nil
 }

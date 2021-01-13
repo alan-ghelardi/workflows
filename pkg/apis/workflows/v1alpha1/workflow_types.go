@@ -56,7 +56,7 @@ var (
 // GetRepositories returns the list of Github repositories associated to this workflow.
 func (w *Workflow) GetRepositories() []Repository {
 	repos := []Repository{*w.Spec.Repository}
-	repos = append(repos, w.Spec.SecondaryRepositories...)
+	repos = append(repos, w.Spec.AdditionalRepositories...)
 	return repos
 }
 
@@ -69,7 +69,7 @@ const (
 // question or nil if no deploy key has been created yet.
 func (w *Workflow) GetDeployKeyID(repo *Repository) *int64 {
 	key := fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)
-	value, exists := w.ObjectMeta.Annotations[key]
+	value, exists := w.Status.Annotations[key]
 
 	if exists {
 		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
@@ -82,7 +82,7 @@ func (w *Workflow) GetDeployKeyID(repo *Repository) *int64 {
 // SetDeployKeyID stores the deploy key id associated to the supplied repository as a
 // metadata in the workflow in question.
 func (w *Workflow) SetDeployKeyID(repo *Repository, id int64) {
-	w.ObjectMeta.Annotations[fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
+	w.Status.Annotations[fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
 }
 
 // GetWebhookID returns the id of a Webhook associated to the repository in
@@ -90,7 +90,7 @@ func (w *Workflow) SetDeployKeyID(repo *Repository, id int64) {
 func (w *Workflow) GetWebhookID() *int64 {
 	repo := w.Spec.Repository
 	key := fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)
-	value, exists := w.ObjectMeta.Annotations[key]
+	value, exists := w.Status.Annotations[key]
 
 	if exists {
 		if id, err := strconv.ParseInt(value, 10, 64); err == nil {
@@ -104,7 +104,7 @@ func (w *Workflow) GetWebhookID() *int64 {
 // metadata in the workflow in question.
 func (w *Workflow) SetWebhookID(id int64) {
 	repo := w.Spec.Repository
-	w.ObjectMeta.Annotations[fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
+	w.Status.Annotations[fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
 }
 
 // GetDeployKeysSecretName returns the name of the private SSH key associated to
@@ -133,7 +133,7 @@ type WorkflowSpec struct {
 
 	// Other repositories that must be checked out during the execution of this workflow.
 	// +optional
-	SecondaryRepositories []Repository `json:"secondaryRepos,omitempty"`
+	AdditionalRepositories []Repository `json:"additionalRepos,omitempty"`
 
 	// Names of Github events that trigger this workflow.
 	// +optional
@@ -192,6 +192,13 @@ func (r *Repository) IsReadOnlyDeployKey() bool {
 	return r.DeployKey.ReadOnly
 }
 
+// NeedsSSHPrivateKeys returns true if the repository in question requires SSH
+// private keys (i.e. it's a private repository or the configured deploy key has
+// write permissions).
+func (r *Repository) NeedsSSHPrivateKeys() bool {
+	return r.Private || r.IsReadOnlyDeployKey()
+}
+
 // String satisfies fmt.Stringer interface.
 func (r *Repository) String() string {
 	return fmt.Sprintf("%s/%s", r.Owner, r.Name)
@@ -203,9 +210,6 @@ type Webhook struct {
 
 	// The URL to which the payloads will be delivered
 	URL string `json:"url"`
-
-	// Determines what events the Webhook is triggered for.
-	Events []string `json:"events"`
 }
 
 // DeployKey contains a few settings for the deploy keys associated to the workflow.
@@ -253,10 +257,6 @@ type Task struct {
 	// Selects an existing Tekton Task to run in this workflow.
 	// +optional
 	Use string `json:"use,omitempty"`
-
-	// List of workspaces to be bound to the underwing TaskRun object.
-	// +optional
-	Workspace []string `json:"workspaces,omitempty"`
 }
 
 // EmbeddedStep defines a step to be executed as part of a task.
@@ -301,8 +301,6 @@ type WorkflowStatus struct {
 }
 
 const (
-	// WorkflowConditionReady is set when the revision is starting to materialize
-	// runtime resources, and becomes true when those resources are ready.
 	WorkflowConditionReady = apis.ConditionReady
 )
 

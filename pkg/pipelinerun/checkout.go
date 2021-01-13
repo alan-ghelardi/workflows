@@ -181,12 +181,12 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 	needsSSHPrivateKeys := c.workflow.Spec.Repository.Private
 
 	// Inject steps for checking out secondary repositories
-	if len(c.workflow.Spec.SecondaryRepositories) != 0 {
+	if len(c.workflow.Spec.AdditionalRepositories) != 0 {
 		steps := task.Steps[:1]
 		// Create an empty event since secondary repositories aren't bound to Github events.
 		event := &github.Event{}
 
-		for _, repo := range c.workflow.Spec.SecondaryRepositories {
+		for _, repo := range c.workflow.Spec.AdditionalRepositories {
 			embeddedStep := workflowsv1alpha1.EmbeddedStep{
 				Name: fmt.Sprintf("checkout-%s", repo.Name),
 				Use:  workflowsv1alpha1.CheckoutAction,

@@ -217,9 +217,6 @@ github.com/tektoncd/pipeline/pkg/contexts
 github.com/tektoncd/pipeline/pkg/list
 github.com/tektoncd/pipeline/pkg/reconciler/pipeline/dag
 github.com/tektoncd/pipeline/pkg/substitution
-# github.com/theckman/go-securerandom v0.1.1
-## explicit
-github.com/theckman/go-securerandom
 # go.opencensus.io v0.22.4
 go.opencensus.io
 go.opencensus.io/internal

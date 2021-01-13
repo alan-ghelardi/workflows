@@ -24,7 +24,8 @@ func NewController(
 
 	workflowInformer := workflowinformer.Get(ctx)
 
-	reconciler := &Reconciler{DeployKeys: github.GetDeployKeySyncerOrDie(ctx),
+	reconciler := &Reconciler{
+		DeployKeys:         github.GetDeployKeySyncerOrDie(ctx),
 		Webhook:            github.GetWebhookSyncerOrDie(ctx),
 		KubeClientSet:      kubeclient.Get(ctx),
 		WorkflowsClientSet: workflowsclient.Get(ctx),

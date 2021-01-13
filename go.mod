@@ -8,7 +8,6 @@ require (
 	github.com/google/go-github/v33 v33.0.0
 	github.com/google/licenseclassifier v0.0.0-20200708223521-3d09a0ea2f39
 	github.com/tektoncd/pipeline v0.18.1
-	github.com/theckman/go-securerandom v0.1.1
 	go.uber.org/zap v1.15.0
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d

@@ -38,13 +38,20 @@ func (w *WorkflowStatus) InitializeConditions() {
 	condSet.Manage(w).InitializeConditions()
 }
 
-func (w *WorkflowStatus) MarkServiceUnavailable(name string) {
+func (w *WorkflowStatus) MarkDeployKeysError(message string) {
 	condSet.Manage(w).MarkFalse(
 		WorkflowConditionReady,
-		"ServiceUnavailable",
-		"Service %q wasn't found.", name)
+		"DeployKeysError",
+		message)
 }
 
-func (w *WorkflowStatus) MarkServiceAvailable() {
+func (w *WorkflowStatus) MarkWebhookError(message string) {
+	condSet.Manage(w).MarkFalse(
+		WorkflowConditionReady,
+		"WebhookError",
+		message)
+}
+
+func (w *WorkflowStatus) MarkReady() {
 	condSet.Manage(w).MarkTrue(WorkflowConditionReady)
 }

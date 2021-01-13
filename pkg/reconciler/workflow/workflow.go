@@ -29,10 +29,10 @@ import (
 type Reconciler struct {
 
 	// DeployKeys allow us to manage Github deploy keys.
-	DeployKeys github.Syncer
+	DeployKeys *github.DeployKeySyncer
 
 	// Webhook allows us to manages the state of Github Webhooks.
-	Webhook github.Syncer
+	Webhook *github.WebhookSyncer
 
 	// KubeClientSet allows us to talk to the k8s for core APIs.
 	KubeClientSet kubernetes.Interface
@@ -44,43 +44,49 @@ type Reconciler struct {
 	WorkflowsClientSet workflowsclientset.Interface
 }
 
-// Check that our Reconciler implements Interface
-var _ workflowreconciler.Interface = (*Reconciler)(nil)
+// Check that our Reconciler implements the required interfaces
+var (
+	_ workflowreconciler.Interface = (*Reconciler)(nil)
+	_ workflowreconciler.Finalizer = (*Reconciler)(nil)
+)
 
 // ReconcileKind implements Interface.ReconcileKind.
 func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alpha1.Workflow) reconciler.Event {
 	logger := logging.FromContext(ctx).With("namespace", workflow.GetNamespace(), "name", workflow.GetName())
 	logger.Info("Reconciling workflow")
 
-	if err := r.reconcileWebhook(ctx, logger, workflow); err != nil {
+	if err := r.reconcileWebhook(ctx, workflow); err != nil {
+		workflow.Status.MarkWebhookError(err.Error())
 		return err
 	}
 
-	if err := r.reconcileDeployKeys(ctx, logger, workflow); err != nil {
+	if err := r.reconcileDeployKeys(ctx, workflow); err != nil {
+		workflow.Status.MarkDeployKeysError(err.Error())
 		return err
 	}
+
+	workflow.Status.MarkReady()
 
 	return nil
 }
 
 // reconcileWebhook keeps Github Webhooks in sync with the desired state
 // declared in workflows.
-func (r *Reconciler) reconcileWebhook(ctx context.Context, logger *zap.SugaredLogger, workflow *workflowsv1alpha1.Workflow) error {
-	result, err := r.Webhook.Sync(ctx, workflow)
+func (r *Reconciler) reconcileWebhook(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
+	logger := logging.FromContext(ctx)
+
+	webhook, err := r.Webhook.Sync(ctx, workflow)
 	if err != nil {
-		logger.Error("Unable to sync Github Webhook", err)
+		logger.Errorw("Error reconciling Github Webhook", zap.Error(err))
 		return err
 	}
 
-	if result.HasCreatedResources() {
-		if err := r.updateAnnotations(ctx, workflow); err != nil {
-			logger.Error("Unable to update workflow's annotations", err)
-			return err
-		}
-
-		webhookSecret := secret.OfWebhook(workflow, result)
-		if err := r.reconcileSecret(ctx, workflow, webhookSecret); err != nil {
-			logger.Error("Unable to reconcile Webhook secret token", err)
+	if webhook != nil {
+		// There were changes in the Github Webhook and a new secret was
+		// created. Thus, we try to reconcile the Secret object that
+		// stores the Webhook secret token.
+		if err := r.reconcileWebhookSecret(ctx, workflow, webhook); err != nil {
+			logger.Errorw("Error reconciling Webhook secret", zap.Error(err))
 			return err
 		}
 	}
@@ -88,41 +94,65 @@ func (r *Reconciler) reconcileWebhook(ctx context.Context, logger *zap.SugaredLo
 	return nil
 }
 
-// updateAnnotations ...
-func (r *Reconciler) updateAnnotations(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	newWorkflow, err := r.workflowLister.Workflows(workflow.GetNamespace()).Get(workflow.GetName())
+// reconcileWebhookSecret
+func (r *Reconciler) reconcileWebhookSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, webhook *github.Webhook) error {
+	var (
+		webhookSecret *corev1.Secret
+		err           error
+	)
+
+	webhookSecret, err = r.getSecret(ctx, workflow.GetNamespace(), workflow.GetWebhookSecretName())
 	if err != nil {
-		return fmt.Errorf("Failed to get workflow %s from shared cache: %w", workflow.GetName(), err)
+		return err
 	}
 
-	newWorkflow.Annotations = workflow.Annotations
+	logger := logging.FromContext(ctx)
 
-	if _, err := r.WorkflowsClientSet.WorkflowsV1alpha1().Workflows(workflow.GetNamespace()).Update(ctx, newWorkflow, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("Failed to update workflow %s: %w", workflow.GetName(), err)
+	if webhookSecret == nil {
+		logger.Info("Creating a new Secret to store the Webhook secret")
+		webhookSecret = secret.OfWebhook(workflow, webhook.Secret)
+		err = r.createSecret(ctx, workflow, webhookSecret)
+	} else if len(webhook.Secret) != 0 {
+		logger.Infof("Updating the Secret %s with the newly-created Webhook secret", webhookSecret.GetName())
+		secret.SetSecretToken(webhookSecret, webhook.Secret)
+		err = r.updateSecret(ctx, webhookSecret)
 	}
 
+	return err
+}
+
+// getSecret gets the Secret object identified by the supplied name in the
+// supplied namespace or nil if it doesn't exist.
+func (r *Reconciler) getSecret(ctx context.Context, namespace, name string) (*corev1.Secret, error) {
+	var (
+		secret *corev1.Secret
+		err    error
+	)
+
+	secret, err = r.KubeClientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("Error getting Secret %s: %w", name, err)
+	}
+	return secret, err
+}
+
+// createSecret creates the supplied Secret object.
+func (r *Reconciler) createSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) error {
+	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("Error creating Secret %s: %w", secret.GetName(), err)
+	}
+
+	err := r.setOwnerReference(workflow, secret)
+	if err != nil {
+		return fmt.Errorf("Error setting owner reference on Secret %s: %w", secret.GetName(), err)
+	}
 	return nil
 }
 
-// reconcileSecret creates the supplied secret object if it doesn't exist in the cluster.
-func (r *Reconciler) reconcileSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, secretObj *corev1.Secret) error {
-	if err := r.KubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Delete(ctx, workflow.GetName(), metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("Unable to delete secret %s: %w", secretObj.GetName(), err)
-	}
-
-	if _, err := r.KubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Create(ctx, secretObj, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("Unable to create secret %s: %w", secretObj.GetName(), err)
-	}
-
-	if err := r.setOwnerReference(workflow, secretObj); err != nil {
-		return fmt.Errorf("Unable to set owner references for secret %s: %w", secretObj.GetName(), err)
-	}
-
-	return nil
-}
-
-// setOwnerReference makes the provided object dependent on the workflow. Thus,
-// if the workflow is deleted, the supplied object will be garbage collected.
+// setOwnerReference makes the provided Secret object dependent on the
+// workflow. Thus, if the workflow is deleted, the Secret will be garbage
+// collected.
 func (r *Reconciler) setOwnerReference(workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) error {
 	ownerRef := metav1.NewControllerRef(workflow, workflow.GetGroupVersionKind())
 	references := []metav1.OwnerReference{*ownerRef}
@@ -130,27 +160,77 @@ func (r *Reconciler) setOwnerReference(workflow *workflowsv1alpha1.Workflow, sec
 	return nil
 }
 
+// updateSecret updates the supplied Secret object.
+func (r *Reconciler) updateSecret(ctx context.Context, secret *corev1.Secret) error {
+	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("Error updating Secret %s: %w", secret.GetName(), err)
+	}
+	return nil
+
+}
+
 // reconcileDeployKeys keeps Github deploy keys in sync with the desired state
 // declared in workflows.
-func (r *Reconciler) reconcileDeployKeys(ctx context.Context, logger *zap.SugaredLogger, workflow *workflowsv1alpha1.Workflow) error {
-	result, err := r.DeployKeys.Sync(ctx, workflow)
+func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
+	logger := logging.FromContext(ctx)
+
+	keyPairs, err := r.DeployKeys.Sync(ctx, workflow)
 	if err != nil {
-		logger.Error("Unable to sync Github deploy keys", err)
+		logger.Errorw("Error reconciling Github deploy keys", zap.Error(err))
 		return err
 	}
 
-	if result.HasCreatedResources() {
-		if err := r.updateAnnotations(ctx, workflow); err != nil {
-			logger.Error("Unable to update workflow's annotations", err)
-			return err
-		}
-
-		privateSSHKey := secret.OfDeployKeys(workflow, result)
-		if err := r.reconcileSecret(ctx, workflow, privateSSHKey); err != nil {
-			logger.Error("Unable to reconcile private SSH keys", err)
+	if len(keyPairs) != 0 {
+		// There were changes in Github deploy keys and we should create
+		// or update the Secret that stores SSH private keys.
+		if err := r.reconcileDeployKeysSecret(ctx, workflow, keyPairs); err != nil {
+			logger.Errorw("Error reconciling deploy keys secret", zap.Error(err))
 			return err
 		}
 	}
 
+	return nil
+}
+
+// reconcileDeployKeysSecret
+func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, keyPairs []secret.KeyPair) error {
+	var (
+		deployKeys *corev1.Secret
+		err        error
+	)
+
+	deployKeys, err = r.getSecret(ctx, workflow.GetNamespace(), workflow.GetDeployKeysSecretName())
+	if err != nil {
+		return err
+	}
+
+	logger := logging.FromContext(ctx)
+
+	if deployKeys == nil {
+		logger.Info("Creating a new Secret to store SSH private keys")
+		deployKeys = secret.OfDeployKeys(workflow, keyPairs)
+		err = r.createSecret(ctx, workflow, deployKeys)
+	} else {
+		logger.Infof("Updating the Secret %s with the newly-created SSH private keys", deployKeys.GetName())
+		secret.SetSSHPrivateKeys(deployKeys, keyPairs)
+		err = r.updateSecret(ctx, deployKeys)
+	}
+
+	return err
+}
+
+// FinalizeKind implements Finalizer.FinalizeKind.
+func (r *Reconciler) FinalizeKind(ctx context.Context, workflow *workflowsv1alpha1.Workflow) reconciler.Event {
+	logger := logging.FromContext(ctx)
+
+	if err := r.Webhook.Delete(ctx, workflow); err != nil {
+		logger.Errorw("Error deleting Github Webhook", zap.Error(err))
+		return err
+	}
+
+	if err := r.DeployKeys.Delete(ctx, workflow); err != nil {
+		logger.Errorw("Error deleting Github deploy keys", zap.Error(err))
+		return err
+	}
 	return nil
 }
