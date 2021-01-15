@@ -8,8 +8,6 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"go.uber.org/zap"
-
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/nubank/workflows/pkg/github"
@@ -52,7 +50,7 @@ var (
 
 // ReconcileKind implements Interface.ReconcileKind.
 func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alpha1.Workflow) reconciler.Event {
-	logger := logging.FromContext(ctx).With("namespace", workflow.GetNamespace(), "name", workflow.GetName())
+	logger := logging.FromContext(ctx)
 	logger.Info("Reconciling workflow")
 
 	if err := r.reconcileWebhook(ctx, workflow); err != nil {
@@ -73,20 +71,16 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alp
 // reconcileWebhook keeps Github Webhooks in sync with the desired state
 // declared in workflows.
 func (r *Reconciler) reconcileWebhook(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	logger := logging.FromContext(ctx)
-
 	webhook, err := r.Webhook.Sync(ctx, workflow)
 	if err != nil {
-		logger.Errorw("Error reconciling Github Webhook", zap.Error(err))
 		return err
 	}
 
-	if webhook != nil {
+	if webhook != nil && len(webhook.Secret) != 0 {
 		// There were changes in the Github Webhook and a new secret was
 		// created. Thus, we try to reconcile the Secret object that
 		// stores the Webhook secret token.
 		if err := r.reconcileWebhookSecret(ctx, workflow, webhook); err != nil {
-			logger.Errorw("Error reconciling Webhook secret", zap.Error(err))
 			return err
 		}
 	}
@@ -106,14 +100,10 @@ func (r *Reconciler) reconcileWebhookSecret(ctx context.Context, workflow *workf
 		return err
 	}
 
-	logger := logging.FromContext(ctx)
-
 	if webhookSecret == nil {
-		logger.Info("Creating a new Secret to store the Webhook secret")
 		webhookSecret = secret.OfWebhook(workflow, webhook.Secret)
 		err = r.createSecret(ctx, workflow, webhookSecret)
-	} else if len(webhook.Secret) != 0 {
-		logger.Infof("Updating the Secret %s with the newly-created Webhook secret", webhookSecret.GetName())
+	} else {
 		secret.SetSecretToken(webhookSecret, webhook.Secret)
 		err = r.updateSecret(ctx, webhookSecret)
 	}
@@ -132,51 +122,57 @@ func (r *Reconciler) getSecret(ctx context.Context, namespace, name string) (*co
 	secret, err = r.KubeClientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 
 	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("Error getting Secret %s: %w", name, err)
+		return nil, fmt.Errorf("Error getting Secret %s/%s: %w", namespace, name, err)
 	}
-	return secret, err
+
+	if apierrors.IsNotFound(err) {
+		return nil, nil
+	}
+
+	return secret, nil
 }
 
 // createSecret creates the supplied Secret object.
 func (r *Reconciler) createSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) error {
+	r.setOwnerReference(workflow, secret)
+
 	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("Error creating Secret %s: %w", secret.GetName(), err)
+		return fmt.Errorf("Error creating Secret %s/%s: %w", secret.GetNamespace(), secret.GetName(), err)
 	}
 
-	err := r.setOwnerReference(workflow, secret)
-	if err != nil {
-		return fmt.Errorf("Error setting owner reference on Secret %s: %w", secret.GetName(), err)
-	}
+	logger := logging.FromContext(ctx)
+
+	logger.Infof("Successfully created Secret %s/%s", secret.GetNamespace(), secret.GetName())
+
 	return nil
 }
 
 // setOwnerReference makes the provided Secret object dependent on the
 // workflow. Thus, if the workflow is deleted, the Secret will be garbage
 // collected.
-func (r *Reconciler) setOwnerReference(workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) error {
+func (r *Reconciler) setOwnerReference(workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) {
 	ownerRef := metav1.NewControllerRef(workflow, workflow.GetGroupVersionKind())
 	references := []metav1.OwnerReference{*ownerRef}
 	secret.SetOwnerReferences(references)
-	return nil
 }
 
 // updateSecret updates the supplied Secret object.
 func (r *Reconciler) updateSecret(ctx context.Context, secret *corev1.Secret) error {
 	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
-		return fmt.Errorf("Error updating Secret %s: %w", secret.GetName(), err)
+		return fmt.Errorf("Error updating Secret %s/%s: %w", secret.GetNamespace(), secret.GetName(), err)
 	}
-	return nil
 
+	logger := logging.FromContext(ctx)
+	logger.Infof("Successfully updated Secret %s/%s", secret.GetNamespace(), secret.GetName())
+
+	return nil
 }
 
 // reconcileDeployKeys keeps Github deploy keys in sync with the desired state
 // declared in workflows.
 func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	logger := logging.FromContext(ctx)
-
 	keyPairs, err := r.DeployKeys.Sync(ctx, workflow)
 	if err != nil {
-		logger.Errorw("Error reconciling Github deploy keys", zap.Error(err))
 		return err
 	}
 
@@ -184,7 +180,6 @@ func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflow
 		// There were changes in Github deploy keys and we should create
 		// or update the Secret that stores SSH private keys.
 		if err := r.reconcileDeployKeysSecret(ctx, workflow, keyPairs); err != nil {
-			logger.Errorw("Error reconciling deploy keys secret", zap.Error(err))
 			return err
 		}
 	}
@@ -207,11 +202,11 @@ func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *wo
 	logger := logging.FromContext(ctx)
 
 	if deployKeys == nil {
-		logger.Info("Creating a new Secret to store SSH private keys")
+		logger.Info("Creating new Secret to store SSH private keys")
 		deployKeys = secret.OfDeployKeys(workflow, keyPairs)
 		err = r.createSecret(ctx, workflow, deployKeys)
 	} else {
-		logger.Infof("Updating the Secret %s with the newly-created SSH private keys", deployKeys.GetName())
+		logger.Infof("Updating Secret %s/%s with the newly-created SSH private keys", deployKeys.GetNamespace(), deployKeys.GetName())
 		secret.SetSSHPrivateKeys(deployKeys, keyPairs)
 		err = r.updateSecret(ctx, deployKeys)
 	}
@@ -221,15 +216,11 @@ func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *wo
 
 // FinalizeKind implements Finalizer.FinalizeKind.
 func (r *Reconciler) FinalizeKind(ctx context.Context, workflow *workflowsv1alpha1.Workflow) reconciler.Event {
-	logger := logging.FromContext(ctx)
-
 	if err := r.Webhook.Delete(ctx, workflow); err != nil {
-		logger.Errorw("Error deleting Github Webhook", zap.Error(err))
 		return err
 	}
 
 	if err := r.DeployKeys.Delete(ctx, workflow); err != nil {
-		logger.Errorw("Error deleting Github deploy keys", zap.Error(err))
 		return err
 	}
 	return nil

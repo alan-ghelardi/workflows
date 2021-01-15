@@ -27,7 +27,7 @@ func (d *DeployKeySyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow)
 	for _, repo := range repos {
 		if keyPair, err := d.syncDeployKey(ctx, workflow, &repo); err != nil {
 			return nil, err
-		} else {
+		} else if keyPair != nil {
 			keyPairs = append(keyPairs, *keyPair)
 		}
 	}

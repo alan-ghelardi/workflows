@@ -82,6 +82,9 @@ func (w *Workflow) GetDeployKeyID(repo *Repository) *int64 {
 // SetDeployKeyID stores the deploy key id associated to the supplied repository as a
 // metadata in the workflow in question.
 func (w *Workflow) SetDeployKeyID(repo *Repository, id int64) {
+	if w.Status.Annotations == nil {
+		w.Status.Annotations = make(map[string]string)
+	}
 	w.Status.Annotations[fmt.Sprintf(deployKeyIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
 }
 
@@ -103,6 +106,9 @@ func (w *Workflow) GetWebhookID() *int64 {
 // SetWebhookID stores the Webhook id associated to the supplied repository as a
 // metadata in the workflow in question.
 func (w *Workflow) SetWebhookID(id int64) {
+	if w.Status.Annotations == nil {
+		w.Status.Annotations = make(map[string]string)
+	}
 	repo := w.Spec.Repository
 	w.Status.Annotations[fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
 }
@@ -178,9 +184,6 @@ type Repository struct {
 
 // GetSSHPrivateKeyName returns the name of the SSH private key associated to this repository.
 func (r *Repository) GetSSHPrivateKeyName() string {
-	if r.DeployKey == nil {
-		return ""
-	}
 	return fmt.Sprintf("%s_id_rsa", r.Name)
 }
 
@@ -256,7 +259,7 @@ type Task struct {
 
 	// Selects an existing Tekton Task to run in this workflow.
 	// +optional
-	Use string `json:"use,omitempty"`
+	Use string `json:"uses,omitempty"`
 }
 
 // EmbeddedStep defines a step to be executed as part of a task.
@@ -280,7 +283,7 @@ type EmbeddedStep struct {
 
 	// Selects a built-in action to run as part of the task in question.
 	// +optional
-	Use BuiltInAction `json:"use,omitempty"`
+	Use BuiltInAction `json:"uses,omitempty"`
 
 	// Step's working directory.
 	// +optional
