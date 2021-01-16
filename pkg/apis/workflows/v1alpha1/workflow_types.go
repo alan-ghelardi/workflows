@@ -143,7 +143,7 @@ type WorkflowSpec struct {
 
 	// Names of Github events that trigger this workflow.
 	// +optional
-	Events []string `json:"on,omitempty"`
+	Events []string `json:"triggersOn,omitempty"`
 
 	// Configures the workflow to run on events related to those branches.
 	// +optional

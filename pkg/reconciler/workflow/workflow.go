@@ -30,7 +30,7 @@ type Reconciler struct {
 	DeployKeys *github.DeployKeySyncer
 
 	// Webhook allows us to manages the state of Github Webhooks.
-	Webhook *github.WebhookSyncer
+	Webhook *github.WebhookReconciler
 
 	// KubeClientSet allows us to talk to the k8s for core APIs.
 	KubeClientSet kubernetes.Interface
@@ -71,7 +71,7 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alp
 // reconcileWebhook keeps Github Webhooks in sync with the desired state
 // declared in workflows.
 func (r *Reconciler) reconcileWebhook(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	webhook, err := r.Webhook.Sync(ctx, workflow)
+	webhook, err := r.Webhook.ReconcileHook(ctx, workflow)
 	if err != nil {
 		return err
 	}
@@ -88,12 +88,14 @@ func (r *Reconciler) reconcileWebhook(ctx context.Context, workflow *workflowsv1
 	return nil
 }
 
-// reconcileWebhookSecret
+// reconcileWebhookSecret creates or updates the corev1.Secret object that holds the Webhook secret token.
 func (r *Reconciler) reconcileWebhookSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, webhook *github.Webhook) error {
 	var (
 		webhookSecret *corev1.Secret
 		err           error
 	)
+
+	logger := logging.FromContext(ctx)
 
 	webhookSecret, err = r.getSecret(ctx, workflow.GetNamespace(), workflow.GetWebhookSecretName())
 	if err != nil {
@@ -102,8 +104,10 @@ func (r *Reconciler) reconcileWebhookSecret(ctx context.Context, workflow *workf
 
 	if webhookSecret == nil {
 		webhookSecret = secret.OfWebhook(workflow, webhook.Secret)
+		logger.Info("Creating a new Secret resource to store the newly-created Webhook secret token")
 		err = r.createSecret(ctx, workflow, webhookSecret)
 	} else {
+		logger.Infof("Updating Secret %s/%s with the newly-created Webhook secret token", webhookSecret.GetNamespace(), webhookSecret.GetName())
 		secret.SetSecretToken(webhookSecret, webhook.Secret)
 		err = r.updateSecret(ctx, webhookSecret)
 	}
@@ -134,26 +138,14 @@ func (r *Reconciler) getSecret(ctx context.Context, namespace, name string) (*co
 
 // createSecret creates the supplied Secret object.
 func (r *Reconciler) createSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) error {
-	r.setOwnerReference(workflow, secret)
-
 	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("Error creating Secret %s/%s: %w", secret.GetNamespace(), secret.GetName(), err)
 	}
 
 	logger := logging.FromContext(ctx)
-
-	logger.Infof("Successfully created Secret %s/%s", secret.GetNamespace(), secret.GetName())
+	logger.Infof("Secret %s/%s has been successfully created", secret.GetNamespace(), secret.GetName())
 
 	return nil
-}
-
-// setOwnerReference makes the provided Secret object dependent on the
-// workflow. Thus, if the workflow is deleted, the Secret will be garbage
-// collected.
-func (r *Reconciler) setOwnerReference(workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) {
-	ownerRef := metav1.NewControllerRef(workflow, workflow.GetGroupVersionKind())
-	references := []metav1.OwnerReference{*ownerRef}
-	secret.SetOwnerReferences(references)
 }
 
 // updateSecret updates the supplied Secret object.
@@ -163,7 +155,7 @@ func (r *Reconciler) updateSecret(ctx context.Context, secret *corev1.Secret) er
 	}
 
 	logger := logging.FromContext(ctx)
-	logger.Infof("Successfully updated Secret %s/%s", secret.GetNamespace(), secret.GetName())
+	logger.Infof("Secret %s/%s has been successfully updated", secret.GetNamespace(), secret.GetName())
 
 	return nil
 }
@@ -187,7 +179,7 @@ func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflow
 	return nil
 }
 
-// reconcileDeployKeysSecret
+// reconcileDeployKeysSecret creates or updates the corev1.Secret object that holds SSH private keys for the workflow in question.
 func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, keyPairs []secret.KeyPair) error {
 	var (
 		deployKeys *corev1.Secret

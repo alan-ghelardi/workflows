@@ -13,9 +13,9 @@ import (
 	"github.com/nubank/workflows/pkg/secret"
 )
 
-// WebhookSyncer keeps Github Webhooks in sync to the desired state declared in
+// WebhookReconciler keeps Github Webhooks in sync to the desired state declared in
 // workflows.
-type WebhookSyncer struct {
+type WebhookReconciler struct {
 	githubClient *github.Client
 }
 
@@ -25,8 +25,8 @@ type Webhook struct {
 	Secret []byte
 }
 
-// Sync creates or updates a Github Webhook.
-func (w *WebhookSyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
+// ReconcileHook creates or updates a Github Webhook.
+func (w *WebhookReconciler) ReconcileHook(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
 	var (
 		id         *int64
 		err        error
@@ -74,7 +74,7 @@ func (w *WebhookSyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow) (
 }
 
 // getWebhook returns the Webhook associated to the supplied workflow.
-func (w *WebhookSyncer) getWebhook(ctx context.Context, workflow *v1alpha1.Workflow, id int64) (*github.Hook, error) {
+func (w *WebhookReconciler) getWebhook(ctx context.Context, workflow *v1alpha1.Workflow, id int64) (*github.Hook, error) {
 	repo := workflow.Spec.Repository
 	hook, response, err := w.githubClient.Repositories.GetHook(ctx,
 		repo.Owner,
@@ -94,7 +94,7 @@ func (w *WebhookSyncer) getWebhook(ctx context.Context, workflow *v1alpha1.Workf
 
 // changedSinceLastSync returns true if the Webhook settings have been changed
 // since the last sync or false otherwise.
-func (w *WebhookSyncer) changedSinceLastSync(workflow *v1alpha1.Workflow, hook *github.Hook) bool {
+func (w *WebhookReconciler) changedSinceLastSync(workflow *v1alpha1.Workflow, hook *github.Hook) bool {
 	return !hook.GetActive() ||
 		!reflect.DeepEqual(workflow.Spec.Events, hook.Events) ||
 		workflow.Spec.Webhook.URL != hook.Config["url"] ||
@@ -103,7 +103,7 @@ func (w *WebhookSyncer) changedSinceLastSync(workflow *v1alpha1.Workflow, hook *
 }
 
 // createWebhook creates a new Github Webhook.
-func (w *WebhookSyncer) createWebhook(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
+func (w *WebhookReconciler) createWebhook(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
 	repo := workflow.Spec.Repository
 
 	secretToken := secret.GenerateRandomToken()
@@ -128,7 +128,7 @@ func (w *WebhookSyncer) createWebhook(ctx context.Context, workflow *v1alpha1.Wo
 }
 
 // newHook returns a new Hook object.
-func (w *WebhookSyncer) newHook(workflow *v1alpha1.Workflow, secret *string) *github.Hook {
+func (w *WebhookReconciler) newHook(workflow *v1alpha1.Workflow, secret *string) *github.Hook {
 	hook := &github.Hook{Active: github.Bool(true),
 		Events: workflow.Spec.Events,
 		Config: map[string]interface{}{
@@ -146,7 +146,7 @@ func (w *WebhookSyncer) newHook(workflow *v1alpha1.Workflow, secret *string) *gi
 }
 
 // updateWebhook updates an existing Github Webhook.
-func (w *WebhookSyncer) updateWebhook(ctx context.Context, workflow *v1alpha1.Workflow, id int64) (*Webhook, error) {
+func (w *WebhookReconciler) updateWebhook(ctx context.Context, workflow *v1alpha1.Workflow, id int64) (*Webhook, error) {
 	repo := workflow.Spec.Repository
 	hook, _, err := w.githubClient.Repositories.EditHook(ctx,
 		repo.Owner,
@@ -167,7 +167,7 @@ func (w *WebhookSyncer) updateWebhook(ctx context.Context, workflow *v1alpha1.Wo
 }
 
 // Delete deletes the Webhook associated to the workflow in question.
-func (w *WebhookSyncer) Delete(ctx context.Context, workflow *v1alpha1.Workflow) error {
+func (w *WebhookReconciler) Delete(ctx context.Context, workflow *v1alpha1.Workflow) error {
 	var (
 		id   *int64
 		err  error
@@ -201,14 +201,14 @@ type webhookSyncerKey struct {
 
 // WithWebhookSyncer returns a copy of the supplied context with a new WebhookSyncer object added.
 func WithWebhookSyncer(ctx context.Context, client *github.Client) context.Context {
-	return context.WithValue(ctx, webhookSyncerKey{}, &WebhookSyncer{githubClient: client})
+	return context.WithValue(ctx, webhookSyncerKey{}, &WebhookReconciler{githubClient: client})
 }
 
 // GetWebhookSyncerOrDie returns a WebhookSyncer instance from the supplied
 // context or dies by calling log.fatal if the context doesn't contain a
 // WebhookSyncer object.
-func GetWebhookSyncerOrDie(ctx context.Context) *WebhookSyncer {
-	if webhookSyncer, ok := ctx.Value(webhookSyncerKey{}).(*WebhookSyncer); ok {
+func GetWebhookSyncerOrDie(ctx context.Context) *WebhookReconciler {
+	if webhookSyncer, ok := ctx.Value(webhookSyncerKey{}).(*WebhookReconciler); ok {
 		return webhookSyncer
 	}
 	log.Fatal("Unable to get a valid WebhookSyncer instance from context")

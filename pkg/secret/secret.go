@@ -41,6 +41,7 @@ func GenerateKeyPair(repo *workflowsv1alpha1.Repository) (*KeyPair, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	publicKey, err := generateRSAPublicKey(privateKey)
 	if err != nil {
 		return nil, err
@@ -97,25 +98,34 @@ func OfWebhook(workflow *workflowsv1alpha1.Workflow, secretToken []byte) *corev1
 
 // newSecret returns a corev1.Secret object with basic definitions.
 func newSecret(name string, workflow *workflowsv1alpha1.Workflow) *corev1.Secret {
-	return &corev1.Secret{
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: workflow.Namespace,
+			Labels: map[string]string{
+				"workflows.dev/workflow": workflow.GetName(),
+			},
 		},
 		Data: make(map[string][]byte),
 	}
+
+	setOwnerReference(secret, workflow)
+
+	return secret
+}
+
+// setOwnerReference makes the provided Secret object dependent on the
+// workflow. Thus, if the workflow is deleted, the Secret will be garbage
+// collected automatically.
+func setOwnerReference(secret *corev1.Secret, workflow *workflowsv1alpha1.Workflow) {
+	ownerRef := metav1.NewControllerRef(workflow, workflow.GetGroupVersionKind())
+	references := []metav1.OwnerReference{*ownerRef}
+	secret.SetOwnerReferences(references)
 }
 
 // SetSecretToken assigns the supplied secret token to the Secret object in question.
 func SetSecretToken(webhookSecret *corev1.Secret, secretToken []byte) {
-	webhookSecret.Data[secretTokenKey] = base64Encode(secretToken)
-}
-
-// base64Encode returns a base64 encoded representation of the supplied secret.
-func base64Encode(secret []byte) []byte {
-	encodedValue := make([]byte, base64.StdEncoding.EncodedLen(len(secret)))
-	base64.StdEncoding.Encode(encodedValue, secret)
-	return encodedValue
+	webhookSecret.Data[secretTokenKey] = secretToken
 }
 
 // GetSecretToken returns the decoded representation of the Webhook

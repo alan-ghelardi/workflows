@@ -9,7 +9,7 @@ spec:
   webhook:
     url: https://hooks.example.com
 
-  on:
+  triggersOn:
       - push
 
   tasks:
