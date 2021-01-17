@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"sort"
@@ -279,5 +280,15 @@ func TestRejectsRequestsWhenSignaturesDoNotMatch(t *testing.T) {
 
 	if valid, _ := event.VerifySignature(webhookSecret); valid {
 		t.Errorf("Want a invalid result for the signature validation, but got a valid one")
+	}
+}
+
+func TestContextInfusedWithEvent(t *testing.T) {
+	ctx := context.Background()
+	wantEvent := &Event{Name: "push"}
+	gotEvent := GetEvent(WithEvent(ctx, wantEvent))
+
+	if wantEvent != gotEvent {
+		t.Errorf("Want event %+v, got %+v", wantEvent, gotEvent)
 	}
 }

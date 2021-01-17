@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -44,6 +45,31 @@ type Event struct {
 	Name          string
 	Changes       []string
 	Repository    string
+}
+
+// VerifySignature validates the payload sent by Github Webhooks by calculating
+// a hash signature using the provided key and comparing it with the signature
+// sent along with the request.
+// For further details about the algorithm, please see:
+// https://docs.github.com/en/free-pro-team@latest/developers/webhooks-and-events/securing-your-webhooks.
+func (e *Event) VerifySignature(webhookSecret []byte) (bool, string) {
+	if e.HMACSignature == nil || len(e.HMACSignature) == 0 {
+		return false, fmt.Sprintf("Access denied: Github signature header %s is missing", githubSignatureHeader)
+	}
+
+	hash := hmac.New(sha256.New, webhookSecret)
+	hash.Write(e.Body)
+	digest := hash.Sum(nil)
+
+	signature := make([]byte, hex.EncodedLen(len(digest)))
+	hex.Encode(signature, digest)
+	signature = append([]byte("sha256="), signature...)
+
+	if !hmac.Equal(e.HMACSignature, signature) {
+		return false, "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
+	}
+
+	return true, "Access permitted: the signature we calculated matches the provided signature."
 }
 
 // ParseWebhookEvent creates a new Event object from the supplied HTTP request.
@@ -144,27 +170,16 @@ func collectChanges(event *github.PushEvent) []string {
 	return changes
 }
 
-// VerifySignature validates the payload sent by Github Webhooks by calculating
-// a hash signature using the provided key and comparing it with the signature
-// sent along with the request.
-// For further details about the algorithm, please see:
-// https://docs.github.com/en/free-pro-team@latest/developers/webhooks-and-events/securing-your-webhooks.
-func (e *Event) VerifySignature(webhookSecret []byte) (bool, string) {
-	if e.HMACSignature == nil || len(e.HMACSignature) == 0 {
-		return false, fmt.Sprintf("Access denied: Github signature header %s is missing", githubSignatureHeader)
-	}
+// eventKey identifies Event objects in contexts.
+type eventKey struct {
+}
 
-	hash := hmac.New(sha256.New, webhookSecret)
-	hash.Write(e.Body)
-	digest := hash.Sum(nil)
+// WithEvent returns a copy of the supplied context with the Event object added.
+func WithEvent(ctx context.Context, event *Event) context.Context {
+	return context.WithValue(ctx, eventKey{}, event)
+}
 
-	signature := make([]byte, hex.EncodedLen(len(digest)))
-	hex.Encode(signature, digest)
-	signature = append([]byte("sha256="), signature...)
-
-	if !hmac.Equal(e.HMACSignature, signature) {
-		return false, "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
-	}
-
-	return true, "Access permitted: the signature we calculated matches the provided signature."
+// GetEvent returns the Event object stored in the supplied context.
+func GetEvent(ctx context.Context) *Event {
+	return ctx.Value(eventKey{}).(*Event)
 }
