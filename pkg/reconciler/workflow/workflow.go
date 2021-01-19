@@ -27,7 +27,7 @@ import (
 type Reconciler struct {
 
 	// DeployKeys allow us to manage Github deploy keys.
-	DeployKeys *github.DeployKeySyncer
+	DeployKeys *github.DeployKeyReconciler
 
 	// Webhook allows us to manages the state of Github Webhooks.
 	Webhook *github.WebhookReconciler
@@ -163,7 +163,7 @@ func (r *Reconciler) updateSecret(ctx context.Context, secret *corev1.Secret) er
 // reconcileDeployKeys keeps Github deploy keys in sync with the desired state
 // declared in workflows.
 func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	keyPairs, err := r.DeployKeys.Sync(ctx, workflow)
+	keyPairs, err := r.DeployKeys.ReconcileKeys(ctx, workflow)
 	if err != nil {
 		return err
 	}

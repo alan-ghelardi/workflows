@@ -13,29 +13,31 @@ import (
 	"github.com/nubank/workflows/pkg/secret"
 )
 
-// DeployKeySyncer keeps Github deploy keys in sync with the desired state
+// DeployKeyReconciler keeps Github deploy keys in sync with the desired state
 // declared in workflows.
-type DeployKeySyncer struct {
+type DeployKeyReconciler struct {
 	githubClient *github.Client
 }
 
-// Sync creates or updates all Github deploy keys associated to the supplied workflow.
-func (d *DeployKeySyncer) Sync(ctx context.Context, workflow *v1alpha1.Workflow) ([]secret.KeyPair, error) {
+// ReconcileKeys creates or updates all Github deploy keys associated to the supplied workflow.
+func (d *DeployKeyReconciler) ReconcileKeys(ctx context.Context, workflow *v1alpha1.Workflow) ([]secret.KeyPair, error) {
 	keyPairs := make([]secret.KeyPair, 0)
 	repos := workflow.GetRepositories()
 
 	for _, repo := range repos {
-		if keyPair, err := d.syncDeployKey(ctx, workflow, &repo); err != nil {
-			return nil, err
-		} else if keyPair != nil {
-			keyPairs = append(keyPairs, *keyPair)
+		if repo.NeedsSSHPrivateKeys() {
+			if keyPair, err := d.reconcileKey(ctx, workflow, &repo); err != nil {
+				return nil, err
+			} else if keyPair != nil {
+				keyPairs = append(keyPairs, *keyPair)
+			}
 		}
 	}
 	return keyPairs, nil
 }
 
-// SyncDeployKey creates or updates a Github DeployKey.
-func (d *DeployKeySyncer) syncDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*secret.KeyPair, error) {
+// reconcileKey creates or updates a Github DeployKey.
+func (d *DeployKeyReconciler) reconcileKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*secret.KeyPair, error) {
 	var (
 		id      *int64
 		err     error
@@ -85,7 +87,7 @@ func (d *DeployKeySyncer) syncDeployKey(ctx context.Context, workflow *v1alpha1.
 }
 
 // getDeployKey returns the deploy key that matches the supplied id.
-func (d *DeployKeySyncer) getDeployKey(ctx context.Context, repo *v1alpha1.Repository, id int64) (*github.Key, error) {
+func (d *DeployKeyReconciler) getDeployKey(ctx context.Context, repo *v1alpha1.Repository, id int64) (*github.Key, error) {
 	key, response, err := d.githubClient.Repositories.GetKey(ctx,
 		repo.Owner,
 		repo.Name,
@@ -104,12 +106,12 @@ func (d *DeployKeySyncer) getDeployKey(ctx context.Context, repo *v1alpha1.Repos
 
 // changedSinceLastSync returns true if the deploy key settings have been changed
 // since the last sync or false otherwise.
-func (d *DeployKeySyncer) changedSinceLastSync(repo *v1alpha1.Repository, key *github.Key) bool {
+func (d *DeployKeyReconciler) changedSinceLastSync(repo *v1alpha1.Repository, key *github.Key) bool {
 	return repo.IsReadOnlyDeployKey() != key.GetReadOnly()
 }
 
 // createDeployKey creates a new Github DeployKey.
-func (d *DeployKeySyncer) createDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*github.Key, *secret.KeyPair, error) {
+func (d *DeployKeyReconciler) createDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*github.Key, *secret.KeyPair, error) {
 	var (
 		key     *github.Key
 		keyPair *secret.KeyPair
@@ -142,7 +144,7 @@ func (d *DeployKeySyncer) createDeployKey(ctx context.Context, workflow *v1alpha
 }
 
 // updateDeployKey updates an existing Github DeployKey.
-func (d *DeployKeySyncer) updateDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository, id int64) (*github.Key, *secret.KeyPair, error) {
+func (d *DeployKeyReconciler) updateDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository, id int64) (*github.Key, *secret.KeyPair, error) {
 	err := d.deleteDeployKey(ctx, repo, id)
 	if err != nil {
 		return nil, nil, err
@@ -152,7 +154,7 @@ func (d *DeployKeySyncer) updateDeployKey(ctx context.Context, workflow *v1alpha
 }
 
 // deleteDeployKey deletes an existing Github DeployKey.
-func (d *DeployKeySyncer) deleteDeployKey(ctx context.Context, repo *v1alpha1.Repository, id int64) error {
+func (d *DeployKeyReconciler) deleteDeployKey(ctx context.Context, repo *v1alpha1.Repository, id int64) error {
 	logger := logging.FromContext(ctx)
 
 	_, err := d.githubClient.Repositories.DeleteKey(ctx,
@@ -169,41 +171,42 @@ func (d *DeployKeySyncer) deleteDeployKey(ctx context.Context, repo *v1alpha1.Re
 	return nil
 }
 
-// Delete implements Syncer by deleting all deploy keys associated to the
-// workflow in question.
-func (d *DeployKeySyncer) Delete(ctx context.Context, workflow *v1alpha1.Workflow) error {
+// Delete deletes all deploy keys associated to the workflow in question.
+func (d *DeployKeyReconciler) Delete(ctx context.Context, workflow *v1alpha1.Workflow) error {
 	repos := workflow.GetRepositories()
 
 	for _, repo := range repos {
-		id := workflow.GetDeployKeyID(&repo)
+		if repo.NeedsSSHPrivateKeys() {
+			id := workflow.GetDeployKeyID(&repo)
 
-		if id == nil {
-			return fmt.Errorf("Error deleting deploy key for repository %s: the key's identifier is unknown", repo.String())
-		}
+			if id == nil {
+				return fmt.Errorf("Error deleting deploy key for repository %s: the key's identifier is unknown", repo.String())
+			}
 
-		if err := d.deleteDeployKey(ctx, &repo, *id); err != nil {
-			return err
+			if err := d.deleteDeployKey(ctx, &repo, *id); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-// deployKeySyncerKey is used to store DeployKeySyncer objects into context.Context.
-type deployKeySyncerKey struct {
+// deployKeyReconcilerKey is used to store deployKeyReconciler objects into context.Context.
+type deployKeyReconcilerKey struct {
 }
 
-// WithDeployKeySyncer returns a copy of the supplied context with a new DeployKeySyncer object added.
-func WithDeployKeySyncer(ctx context.Context, client *github.Client) context.Context {
-	return context.WithValue(ctx, deployKeySyncerKey{}, &DeployKeySyncer{githubClient: client})
+// WithDeployKeyReconciler returns a copy of the supplied context with a new DeployKeyReconciler object added.
+func WithDeployKeyReconciler(ctx context.Context, client *github.Client) context.Context {
+	return context.WithValue(ctx, deployKeyReconcilerKey{}, &DeployKeyReconciler{githubClient: client})
 }
 
-// GetDeployKeySyncerOrDie returns a DeployKeySyncer instance from the supplied
+// GetDeployKeyReconcilerOrDie returns a DeployKeyReconciler instance from the supplied
 // context or dies by calling log.fatal if the context doesn't contain a
-// DeployKeySyncer object.
-func GetDeployKeySyncerOrDie(ctx context.Context) *DeployKeySyncer {
-	if deployKeySyncer, ok := ctx.Value(deployKeySyncerKey{}).(*DeployKeySyncer); ok {
-		return deployKeySyncer
+// DeployKeyReconciler object.
+func GetDeployKeyReconcilerOrDie(ctx context.Context) *DeployKeyReconciler {
+	if deployKeyReconciler, ok := ctx.Value(deployKeyReconcilerKey{}).(*DeployKeyReconciler); ok {
+		return deployKeyReconciler
 	}
-	log.Fatal("Unable to get a valid DeployKeySyncer instance from context")
+	log.Fatal("Unable to get a valid DeployKeyReconciler instance from context")
 	return nil
 }

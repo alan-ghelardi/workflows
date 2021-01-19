@@ -195,22 +195,22 @@ func (w *WebhookReconciler) Delete(ctx context.Context, workflow *v1alpha1.Workf
 	return nil
 }
 
-// webhookSyncerKey is used to store WebhookSyncer objects into context.Context.
-type webhookSyncerKey struct {
+// webhookReconcilerKey is used to store WebhookReconciler objects into context.Context.
+type webhookReconcilerKey struct {
 }
 
-// WithWebhookSyncer returns a copy of the supplied context with a new WebhookSyncer object added.
-func WithWebhookSyncer(ctx context.Context, client *github.Client) context.Context {
-	return context.WithValue(ctx, webhookSyncerKey{}, &WebhookReconciler{githubClient: client})
+// WithWebhookReconciler returns a copy of the supplied context with a new WebhookReconciler object added.
+func WithWebhookReconciler(ctx context.Context, client *github.Client) context.Context {
+	return context.WithValue(ctx, webhookReconcilerKey{}, &WebhookReconciler{githubClient: client})
 }
 
-// GetWebhookSyncerOrDie returns a WebhookSyncer instance from the supplied
+// GetWebhookReconcilerOrDie returns a WebhookReconciler instance from the supplied
 // context or dies by calling log.fatal if the context doesn't contain a
-// WebhookSyncer object.
-func GetWebhookSyncerOrDie(ctx context.Context) *WebhookReconciler {
-	if webhookSyncer, ok := ctx.Value(webhookSyncerKey{}).(*WebhookReconciler); ok {
-		return webhookSyncer
+// WebhookReconciler object.
+func GetWebhookReconcilerOrDie(ctx context.Context) *WebhookReconciler {
+	if webhookReconciler, ok := ctx.Value(webhookReconcilerKey{}).(*WebhookReconciler); ok {
+		return webhookReconciler
 	}
-	log.Fatal("Unable to get a valid WebhookSyncer instance from context")
+	log.Fatal("Unable to get a valid WebhookReconciler instance from context")
 	return nil
 }

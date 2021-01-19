@@ -17,4 +17,4 @@ endif
 
 # Install resources in the configured Kubernetes cluster in ~/.kube/config
 install-dev: lint
-	eval $$(minikube -p minikube docker-env) && ko apply -L -f config
+	eval $$(minikube -p minikube docker-env) && ko apply -LRf config

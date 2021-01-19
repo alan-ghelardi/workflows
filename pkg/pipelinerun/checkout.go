@@ -91,7 +91,7 @@ func buildCheckoutStep(embeddedStep workflowsv1alpha1.EmbeddedStep, repo *workfl
 		step.Name = fmt.Sprintf("checkout-%s", repo.Name)
 	}
 
-	if repo.Private {
+	if repo.NeedsSSHPrivateKeys() {
 		step.VolumeMounts = []corev1.VolumeMount{
 			{Name: sshPrivateKeysVolumeName,
 				ReadOnly:  true,
@@ -112,7 +112,7 @@ func BuildCheckoutOptions(repo *workflowsv1alpha1.Repository, event *github.Even
 		ResultName:  resultName(repo),
 	}
 
-	if repo.Private {
+	if repo.NeedsSSHPrivateKeys() {
 		options.sshPrivateKey = fmt.Sprintf("%s/%s", projectsWorkspaceExpr, repo.GetSSHPrivateKeyName())
 		options.URL = fmt.Sprintf("git@github.com:%s/%s.git", repo.Owner, repo.Name)
 	} else {
@@ -178,12 +178,12 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 
 	// Control whether a volume for projecting SSH private keys should be
 	// mounted
-	needsSSHPrivateKeys := c.workflow.Spec.Repository.Private
+	needsSSHPrivateKeys := c.workflow.Spec.Repository.NeedsSSHPrivateKeys()
 
-	// Inject steps for checking out secondary repositories
+	// Inject steps for checking out additional repositories
 	if len(c.workflow.Spec.AdditionalRepositories) != 0 {
 		steps := task.Steps[:1]
-		// Create an empty event since secondary repositories aren't bound to Github events.
+		// Create an empty event since additional repositories aren't bound to Github events.
 		event := &github.Event{}
 
 		for _, repo := range c.workflow.Spec.AdditionalRepositories {
@@ -194,7 +194,7 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 
 			steps = append(steps, buildCheckoutStep(embeddedStep, &repo, event))
 
-			if repo.Private {
+			if repo.NeedsSSHPrivateKeys() {
 				needsSSHPrivateKeys = true
 			}
 		}

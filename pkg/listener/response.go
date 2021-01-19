@@ -20,14 +20,13 @@ type ResponsePayload struct {
 	Message string `json:"message"`
 }
 
-// write
+// write ends the request by writing the response to the server's output stream.
 func (r *Response) write(ctx context.Context, writer http.ResponseWriter) {
-	logger := logging.FromContext(ctx)
-
 	writer.Header().Set("content-type", "application/json")
 	writer.WriteHeader(r.Status)
 	err := json.NewEncoder(writer).Encode(r.Payload)
 	if err != nil {
+		logger := logging.FromContext(ctx)
 		logger.Errorw("Error writing response payload", zap.Error(err))
 	}
 }
@@ -47,7 +46,27 @@ func OK(message string) *Response {
 	return newResponse(http.StatusOK, message)
 }
 
+// Created returns a HTTP 201 response with the supplied message.
+func Created(message string) *Response {
+	return newResponse(http.StatusCreated, message)
+}
+
 // BadRequest returns a HTTP 400 error response with the supplied message.
 func BadRequest(message string) *Response {
 	return newResponse(http.StatusBadRequest, message)
+}
+
+// Forbidden returns a HTTP 403 error response with the supplied message.
+func Forbidden(message string) *Response {
+	return newResponse(http.StatusForbidden, message)
+}
+
+// InternalServerError returns a HTTP 500 error response with the supplied message.
+func InternalServerError(message string) *Response {
+	return newResponse(http.StatusInternalServerError, message)
+}
+
+// NotFound returns a HTTP 404 error response with the supplied message.
+func NotFound(message string) *Response {
+	return newResponse(http.StatusNotFound, message)
 }

@@ -1,4 +1,4 @@
-package runner
+package listener
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 )
 
 func TestReturn404WhenTheWorkflowDoesntExist(t *testing.T) {
-	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "anything",
+	listener := &EventListener{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "anything",
 		Namespace: "dev",
 	},
 	}),
@@ -33,17 +33,16 @@ func TestReturn404WhenTheWorkflowDoesntExist(t *testing.T) {
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{},
-	}
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
 	wantedStatus := 404
 	wantedMessage := "Workflow dev/test-1 not found"
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
@@ -64,21 +63,20 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 		return true, &workflowsv1alpha1.Workflow{}, errors.New("Error creating workflow")
 	})
 
-	sink := &EventSink{WorkflowsClientSet: client}
+	listener := &EventListener{WorkflowsClientSet: client}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{},
-	}
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
 	wantedStatus := 500
 	wantedMessage := "An internal error has occurred while reading workflow dev/test-1"
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
@@ -90,7 +88,7 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 }
 
 func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
-	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
+	listener := &EventListener{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
 		Namespace: "dev",
 	},
 	}),
@@ -99,17 +97,16 @@ func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{},
-	}
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
 	wantedStatus := 500
 	wantedMessage := "An internal error has occurred while verifying the request signature"
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
@@ -121,7 +118,7 @@ func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
 }
 
 func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
-	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
+	listener := &EventListener{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
 		Namespace: "dev",
 	},
 	}),
@@ -137,23 +134,21 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{
-		NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{Body: []byte(`{
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{Body: []byte(`{
     "ref": "refs/heads/dev"
 }`),
-			// This digest was calculated with the key other-secret.
-			HMACSignature: []byte("sha256=d8a72707bd05f566becba60815c77f1e2adddddfceed668ca4844489d12ded07"),
-		},
+		// This digest was calculated with the key other-secret.
+		HMACSignature: []byte("sha256=d8a72707bd05f566becba60815c77f1e2adddddfceed668ca4844489d12ded07"),
 	}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
 	wantedStatus := 403
 	wantedMessage := "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
@@ -164,8 +159,8 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 	}
 }
 
-func TestReturns422WhenFiltersDoNotMatch(t *testing.T) {
-	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
+	listener := &EventListener{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -191,27 +186,25 @@ func TestReturns422WhenFiltersDoNotMatch(t *testing.T) {
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{
-		NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{
-			Body: []byte(`{
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{
+		Body: []byte(`{
     "ref": "refs/heads/dev"
 }`),
-			// This digest was calculated with the key secret.
-			HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
-			Name:          "push",
-			Branch:        "john-patch1",
-			Repository:    "my-org/my-repo",
-		},
+		// This digest was calculated with the key secret.
+		HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
+		Name:          "push",
+		Branch:        "john-patch1",
+		Repository:    "my-org/my-repo",
 	}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 422
+	wantedStatus := 403
 	wantedMessage := "Workflow was rejected because Github event doesn't satisfy filter criteria: branch john-patch1 doesn't match filters [main]"
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
@@ -228,7 +221,7 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 		return true, &pipelinev1beta1.PipelineRun{}, errors.New("Error creating pipelinerun")
 	})
 
-	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	listener := &EventListener{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -255,26 +248,24 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{
-		NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{Body: []byte(`{
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{Body: []byte(`{
     "ref": "refs/heads/dev"
 }`),
-			// This digest was calculated with the key secret.
-			HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
-			Name:          "push",
-			Branch:        "main",
-			Repository:    "my-org/my-repo",
-		},
+		// This digest was calculated with the key secret.
+		HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
+		Name:          "push",
+		Branch:        "main",
+		Repository:    "my-org/my-repo",
 	}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
 	wantedStatus := 500
 	wantedMessage := "An internal error has occurred while creating the PipelineRun for workflow dev/test-1"
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
@@ -294,7 +285,7 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 		}, nil
 	})
 
-	sink := &EventSink{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	listener := &EventListener{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -321,27 +312,25 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
-	request := &Request{
-		NamespacedName: types.NamespacedName{Namespace: "dev", Name: "test-1"},
-		Event: &github.Event{
-			Body: []byte(`{
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{
+		Body: []byte(`{
     "ref": "refs/heads/dev"
 }`),
-			// This digest was calculated with the key secret.
-			HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
-			Name:          "push",
-			Branch:        "main",
-			Repository:    "my-org/my-repo",
-		},
+		// This digest was calculated with the key secret.
+		HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
+		Name:          "push",
+		Branch:        "main",
+		Repository:    "my-org/my-repo",
 	}
 
-	response := sink.RunWorkflow(ctx, request)
+	response := listener.RunWorkflow(ctx, namespacedName, event)
 
 	wantedStatus := 201
 	wantedMessage := "PipelineRun test-1-run-123 has been successfully created"
 
 	gotStatus := response.Status
-	gotMessage := response.Message
+	gotMessage := response.Payload.Message
 
 	if wantedStatus != gotStatus {
 		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)

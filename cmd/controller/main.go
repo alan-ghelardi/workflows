@@ -16,8 +16,8 @@ func main() {
 
 	ctx := injection.WithNamespaceScope(context.Background(), corev1.NamespaceAll)
 
-	ctx = github.WithDeployKeySyncer(ctx, githubClient)
-	ctx = github.WithWebhookSyncer(ctx, githubClient)
+	ctx = github.WithDeployKeyReconciler(ctx, githubClient)
+	ctx = github.WithWebhookReconciler(ctx, githubClient)
 
-	sharedmain.MainWithContext(ctx, "workflows-controller", workflow.NewController)
+	sharedmain.MainWithContext(ctx, "controller", workflow.NewController)
 }
