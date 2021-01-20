@@ -13,6 +13,10 @@ const (
 	workflowAccepted = "Workflow accepted"
 
 	filterSucceeded = "filter succeeded"
+
+	noConfiguredBranches = "skipped because there are no configured branches"
+
+	noConfiguredPaths = "skipped because there are no configured paths"
 )
 
 // Filter is a function that takes a workflow and a Github event and returns a
@@ -44,6 +48,10 @@ func repository(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool
 // branch present in the Github event. This filter is only applied on push and
 // pull_request events.
 func branches(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
+	if len(workflow.Spec.Branches) == 0 {
+		return true, noConfiguredBranches
+	}
+
 	if event.Name != "push" && event.Name != "pull_request" {
 		return true, fmt.Sprintf("skipped because %s event isn't supported", event.Name)
 	}
@@ -70,7 +78,7 @@ func paths(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, str
 	}
 
 	if len(workflow.Spec.Paths) == 0 {
-		return true, "skipped because there are no configured paths"
+		return true, noConfiguredPaths
 	}
 
 	for _, path := range workflow.Spec.Paths {

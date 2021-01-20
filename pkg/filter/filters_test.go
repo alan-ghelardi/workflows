@@ -102,6 +102,23 @@ func TestBranches(t *testing.T) {
 	}
 }
 
+func TestWithEmptyBranchesSlice(t *testing.T) {
+	workflow := &workflowsv1alpha1.Workflow{
+		Spec: workflowsv1alpha1.WorkflowSpec{},
+	}
+
+	wantResult, wantMessage := true, noConfiguredBranches
+	gotResult, gotMessage := branches(workflow, &github.Event{Name: "push", Branch: "dev"})
+
+	if wantResult != gotResult {
+		t.Errorf("Want result %t, got %t", wantResult, gotResult)
+	}
+
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, got %s", wantMessage, gotMessage)
+	}
+}
+
 func TestPaths(t *testing.T) {
 	workflow := &workflowsv1alpha1.Workflow{
 		Spec: workflowsv1alpha1.WorkflowSpec{
@@ -134,6 +151,23 @@ func TestPaths(t *testing.T) {
 		if test.wantResult != gotResult {
 			t.Errorf("Want result %t, got %t", test.wantResult, gotResult)
 		}
+	}
+}
+
+func TestWithEmptyPathsSlice(t *testing.T) {
+	workflow := &workflowsv1alpha1.Workflow{
+		Spec: workflowsv1alpha1.WorkflowSpec{},
+	}
+
+	wantResult, wantMessage := true, noConfiguredPaths
+	gotResult, gotMessage := paths(workflow, &github.Event{Name: "push", Changes: []string{"go.mod"}})
+
+	if wantResult != gotResult {
+		t.Errorf("Want result %t, got %t", wantResult, gotResult)
+	}
+
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, got %s", wantMessage, gotMessage)
 	}
 }
 

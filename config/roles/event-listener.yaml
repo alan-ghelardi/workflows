@@ -9,6 +9,9 @@ rules:
   - apiGroups: [tekton.dev]
     resources: [pipelineruns, taskruns]
     verbs: [create]
+  - apiGroups: [workflows.dev]
+    resources: [workflows]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
@@ -128,21 +127,14 @@ func SetSecretToken(webhookSecret *corev1.Secret, secretToken []byte) {
 	webhookSecret.Data[secretTokenKey] = secretToken
 }
 
-// GetSecretToken returns the decoded representation of the Webhook
-// secret token held by the supplied Secret object.
+// GetSecretToken returns the Webhook secret token held by the supplied Secret
+// object.
 func GetSecretToken(webhookSecret *corev1.Secret) ([]byte, error) {
 	secretToken, exists := webhookSecret.Data[secretTokenKey]
 	if !exists {
 		return nil, fmt.Errorf("Key %s is missing in Secret object %s", secretTokenKey, types.NamespacedName{Namespace: webhookSecret.GetNamespace(), Name: webhookSecret.GetName()})
 	}
-
-	decodedWebhookSecret := make([]byte, base64.StdEncoding.DecodedLen(len(secretToken)))
-	bytesWritten, err := base64.StdEncoding.Decode(decodedWebhookSecret, secretToken)
-	if err != nil {
-		return nil, fmt.Errorf("Error decoding Webhook secret from Secret %s: %w", types.NamespacedName{Namespace: webhookSecret.GetNamespace(), Name: webhookSecret.GetName()}, err)
-	}
-
-	return decodedWebhookSecret[:bytesWritten], nil
+	return secretToken, nil
 }
 
 // OfDeployKeys constructs a Kubernetes secret object to project SSH private

@@ -35,13 +35,13 @@ const (
 var checkoutScript = template.Must(template.New("checkout").
 	Parse(`#!/usr/bin/env sh
 set -euo pipefail
-{{if .sshPrivateKey}}
+{{if .SSHPrivateKey}}
 mkdir -p ~/.ssh
 cat > ~/.ssh/config<<EOF
 Host github.com
   User git
   Hostname github.com
-  IdentityFile {{.sshPrivateKey}}
+  IdentityFile {{.SSHPrivateKey}}
 EOF
 {{end}}
 /ko-app/git-init \
@@ -67,7 +67,7 @@ type CheckoutOptions struct {
 	Destination   string
 	ResultName    string
 	Revision      string
-	sshPrivateKey string
+	SSHPrivateKey string
 	URL           string
 }
 
@@ -113,7 +113,7 @@ func BuildCheckoutOptions(repo *workflowsv1alpha1.Repository, event *github.Even
 	}
 
 	if repo.NeedsSSHPrivateKeys() {
-		options.sshPrivateKey = fmt.Sprintf("%s/%s", projectsWorkspaceExpr, repo.GetSSHPrivateKeyName())
+		options.SSHPrivateKey = fmt.Sprintf("%s/%s", sshPrivateKeysMountPath, repo.GetSSHPrivateKeyName())
 		options.URL = fmt.Sprintf("git@github.com:%s/%s.git", repo.Owner, repo.Name)
 	} else {
 		options.URL = fmt.Sprintf("https://github.com/%s/%s", repo.Owner, repo.Name)
@@ -149,7 +149,7 @@ func renderCheckoutScript(options CheckoutOptions) string {
 func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 	// Create the projects workspace
 	if task.Workspaces == nil {
-		task.Workspaces = make([]pipelinev1beta1.WorkspaceDeclaration, 1)
+		task.Workspaces = make([]pipelinev1beta1.WorkspaceDeclaration, 0)
 	}
 	task.Workspaces = append(task.Workspaces, pipelinev1beta1.WorkspaceDeclaration{
 		Name: projectsWorkspace,
@@ -207,11 +207,13 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 	// associated to this workflow), create the volume to mount the secret
 	// containing the deploy key into the step.
 	if needsSSHPrivateKeys {
+		var defaultMode int32 = 256
 		task.Volumes = []corev1.Volume{{
 			Name: sshPrivateKeysVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: c.workflow.GetDeployKeysSecretName(),
+					SecretName:  c.workflow.GetDeployKeysSecretName(),
+					DefaultMode: &defaultMode,
 				},
 			},
 		},
@@ -222,7 +224,7 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 // ModifyPipelineTask implements BuitInAction.
 func (c *Checkout) ModifyPipelineTask(task *pipelinev1beta1.PipelineTask) {
 	if task.Workspaces == nil {
-		task.Workspaces = make([]pipelinev1beta1.WorkspacePipelineTaskBinding, 1)
+		task.Workspaces = make([]pipelinev1beta1.WorkspacePipelineTaskBinding, 0)
 	}
 
 	task.Workspaces = append(task.Workspaces, pipelinev1beta1.WorkspacePipelineTaskBinding{
@@ -234,7 +236,7 @@ func (c *Checkout) ModifyPipelineTask(task *pipelinev1beta1.PipelineTask) {
 // ModifyPipelineSpec implements BuiltInAction.
 func (c *Checkout) ModifyPipelineSpec(pipeline *pipelinev1beta1.PipelineSpec) {
 	if pipeline.Workspaces == nil {
-		pipeline.Workspaces = make([]pipelinev1beta1.PipelineWorkspaceDeclaration, 1)
+		pipeline.Workspaces = make([]pipelinev1beta1.PipelineWorkspaceDeclaration, 0)
 	}
 	pipeline.Workspaces = append(pipeline.Workspaces, pipelinev1beta1.PipelineWorkspaceDeclaration{
 		Name: projectsWorkspace,
@@ -244,7 +246,7 @@ func (c *Checkout) ModifyPipelineSpec(pipeline *pipelinev1beta1.PipelineSpec) {
 // ModifyPipelineRun implements BuiltInAction.
 func (c *Checkout) ModifyPipelineRun(pipelineRun *pipelinev1beta1.PipelineRun) {
 	if pipelineRun.Spec.Workspaces == nil {
-		pipelineRun.Spec.Workspaces = make([]pipelinev1beta1.WorkspaceBinding, 1)
+		pipelineRun.Spec.Workspaces = make([]pipelinev1beta1.WorkspaceBinding, 0)
 	}
 	pipelineRun.Spec.Workspaces = append(pipelineRun.Spec.Workspaces, pipelinev1beta1.WorkspaceBinding{
 		Name:     projectsWorkspace,
