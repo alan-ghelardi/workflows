@@ -16,4 +16,4 @@ spec:
     hello-world:
       steps:
         - uses: checkout
-        - run: pwd && ls -a
+        - run: pwd && ls

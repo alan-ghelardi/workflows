@@ -88,7 +88,7 @@ func buildCheckoutStep(embeddedStep workflowsv1alpha1.EmbeddedStep, repo *workfl
 	if embeddedStep.Name != "" {
 		step.Name = embeddedStep.Name
 	} else {
-		step.Name = fmt.Sprintf("checkout-%s", repo.Name)
+		step.Name = "checkout"
 	}
 
 	if repo.NeedsSSHPrivateKeys() {
@@ -157,9 +157,10 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 
 	// For convenience, if steps don't declare a working directory, set the
 	// path where the main project was checked out as the default one.
-	for _, step := range task.Steps[1:] {
+	for i := 1; i < len(task.Steps); i++ {
+		step := task.Steps[i]
 		if step.WorkingDir == "" {
-			step.WorkingDir = fmt.Sprintf("%s/%s", projectsWorkspaceExpr, c.workflow.Spec.Repository.Name)
+			task.Steps[i].WorkingDir = fmt.Sprintf("%s/%s", projectsWorkspaceExpr, c.workflow.Spec.Repository.Name)
 		}
 	}
 
@@ -207,6 +208,7 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 	// associated to this workflow), create the volume to mount the secret
 	// containing the deploy key into the step.
 	if needsSSHPrivateKeys {
+		// Same as r-- or 400.
 		var defaultMode int32 = 256
 		task.Volumes = []corev1.Volume{{
 			Name: sshPrivateKeysVolumeName,
