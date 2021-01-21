@@ -61,11 +61,13 @@ func (e *Event) VerifySignature(webhookSecret []byte) (bool, string) {
 	hash.Write(e.Body)
 	digest := hash.Sum(nil)
 
-	signature := make([]byte, hex.EncodedLen(len(digest)))
-	hex.Encode(signature, digest)
-	signature = append([]byte("sha256="), signature...)
+	generatedSignature := make([]byte, hex.EncodedLen(len(digest)))
+	hex.Encode(generatedSignature, digest)
 
-	if !hmac.Equal(e.HMACSignature, signature) {
+	// Drop the prefix sha256= from the HMAC signature sent by Github.
+	signature := e.HMACSignature[7:]
+
+	if !hmac.Equal(signature, generatedSignature) {
 		return false, "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
 	}
 

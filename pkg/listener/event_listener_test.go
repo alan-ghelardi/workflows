@@ -38,18 +38,18 @@ func TestReturn404WhenTheWorkflowDoesntExist(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 404
-	wantedMessage := "Workflow dev/test-1 not found"
+	wantStatus := 404
+	wantMessage := "Workflow dev/test-1 not found"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
 
@@ -72,18 +72,18 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 500
-	wantedMessage := "An internal error has occurred while reading workflow dev/test-1"
+	wantStatus := 500
+	wantMessage := "An internal error has occurred while reading workflow dev/test-1"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
 
@@ -102,18 +102,18 @@ func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 500
-	wantedMessage := "An internal error has occurred while verifying the request signature"
+	wantStatus := 500
+	wantMessage := "An internal error has occurred while verifying the request signature"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
 
@@ -126,8 +126,7 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
-				// The word secret in base64 format
-				"secret-token": []byte("c2VjcmV0"),
+				"secret-token": []byte("secret"),
 			},
 		}),
 	}
@@ -144,18 +143,18 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 403
-	wantedMessage := "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
+	wantStatus := 403
+	wantMessage := "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
 
@@ -178,8 +177,7 @@ func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
-				// The word secret in base64 format
-				"secret-token": []byte("c2VjcmV0"),
+				"secret-token": []byte("secret"),
 			},
 		}),
 	}
@@ -200,18 +198,18 @@ func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 403
-	wantedMessage := "Workflow was rejected because Github event doesn't satisfy filter criteria: branch john-patch1 doesn't match filters [main]"
+	wantStatus := 403
+	wantMessage := "Workflow was rejected because Github event doesn't satisfy filter criteria: branch john-patch1 doesn't match filters [main]"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
 
@@ -239,8 +237,7 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
-				// The word secret in base64 format
-				"secret-token": []byte("c2VjcmV0"),
+				"secret-token": []byte("secret"),
 			},
 		}),
 		TektonClientSet: tektonClient,
@@ -261,18 +258,18 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 500
-	wantedMessage := "An internal error has occurred while creating the PipelineRun for workflow dev/test-1"
+	wantStatus := 500
+	wantMessage := "An internal error has occurred while creating the PipelineRun for workflow dev/test-1"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
 
@@ -303,8 +300,7 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
-				// The word secret in base64 format
-				"secret-token": []byte("c2VjcmV0"),
+				"secret-token": []byte("secret"),
 			},
 		}),
 		TektonClientSet: tektonClient,
@@ -326,17 +322,17 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 
 	response := listener.RunWorkflow(ctx, namespacedName, event)
 
-	wantedStatus := 201
-	wantedMessage := "PipelineRun test-1-run-123 has been successfully created"
+	wantStatus := 201
+	wantMessage := "PipelineRun test-1-run-123 has been successfully created"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
 
-	if wantedStatus != gotStatus {
-		t.Errorf("Wanted status %d, but got %d", wantedStatus, gotStatus)
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
 	}
 
-	if wantedMessage != gotMessage {
-		t.Errorf("Wanted message %s, but got %s", wantedMessage, gotMessage)
+	if wantMessage != gotMessage {
+		t.Errorf("Want message %s, but got %s", wantMessage, gotMessage)
 	}
 }
