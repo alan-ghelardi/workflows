@@ -92,8 +92,9 @@ func NewConfigValidationController(ctx context.Context, cmw configmap.Watcher) *
 
 		// The configmaps to validate.
 		configmap.Constructors{
-			logging.ConfigMapName(): logging.NewConfigFromConfigMap,
-			metrics.ConfigMapName(): metrics.NewObservabilityConfigFromConfigMap,
+			config.DefaultsConfigName: config.NewDefaultsFromConfigMap,
+			logging.ConfigMapName():   logging.NewConfigFromConfigMap,
+			metrics.ConfigMapName():   metrics.NewObservabilityConfigFromConfigMap,
 		},
 	)
 }

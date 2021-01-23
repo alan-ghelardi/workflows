@@ -4,7 +4,7 @@ metadata:
   name: workflows
 subjects:
   - kind: ServiceAccount
-    name: workflows-controller
+    name: controller
     namespace: workflows-system
 roleRef:
   kind: ClusterRole
