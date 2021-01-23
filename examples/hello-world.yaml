@@ -6,8 +6,6 @@ spec:
   repo:
     name: dummy-clj-lib
     owner: alan-ghelardi
-  webhook:
-    url: https://hooks.example.com
 
   triggersOn:
       - push

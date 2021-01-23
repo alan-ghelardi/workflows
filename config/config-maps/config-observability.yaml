@@ -4,8 +4,7 @@ metadata:
   name: config-observability
   namespace: workflows-system
   labels:
-    samples.knative.dev/release: devel
-
+    workflows.workflows.dev/release: devl
 data:
   _example: |
     ################################

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-defaults
+data:
+  default-image: ubuntu
+
+  webhook: https://hooks.example.com
+
+  labels: |
+    workflows.dev/example-label: example
+
+  annotations: |
+    workflows.dev/example-annotation: example

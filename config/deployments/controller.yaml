@@ -13,7 +13,7 @@ spec:
       labels:
         app: workflows-controller
     spec:
-      serviceAccountName: workflows-controller
+      serviceAccountName: controller
       containers:
       - name: controller
         # This is the Go import path for the binary that is containerized

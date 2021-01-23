@@ -18,9 +18,21 @@ package v1alpha1
 
 import (
 	"context"
+
+	"github.com/nubank/workflows/pkg/apis/config"
+	"knative.dev/pkg/apis"
 )
 
 // SetDefaults implements apis.Defaultable
 func (w *Workflow) SetDefaults(ctx context.Context) {
-	// Nothing to default.
+	w.Spec.SetDefaults(apis.WithinSpec(ctx))
+}
+
+// SetDefaults implements apis.Defautable.
+func (ws *WorkflowSpec) SetDefaults(ctx context.Context) {
+	defaults := config.Get(ctx).Defaults
+
+	if ws.Webhook == nil {
+		ws.Webhook = &Webhook{URL: defaults.Webhook}
+	}
 }

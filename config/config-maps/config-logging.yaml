@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: config-logging
   namespace: workflows-system
+  labels:
+    workflows.workflows.dev/release: devel
 data:
     zap-logger-config: |
       {
