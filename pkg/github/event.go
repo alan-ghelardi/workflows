@@ -38,6 +38,7 @@ var refsPattern = regexp.MustCompile(`^refs/heads/(.*)$`)
 type Event struct {
 	Body          []byte
 	Branch        string
+	Data          interface{}
 	DeliveryID    string
 	HeadCommitSHA string
 	HMACSignature []byte
@@ -98,6 +99,8 @@ func ParseWebhookEvent(request *http.Request) (*Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing event payload: %w", err)
 	}
+
+	event.Data = eventPayload
 
 	event.Repository = getRepoFullName(eventPayload)
 
