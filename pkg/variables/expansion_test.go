@@ -13,6 +13,12 @@ func TestExpand(t *testing.T) {
 		ObjectMeta: v1.ObjectMeta{
 			Name: "hello-world",
 		},
+		Spec: workflowsv1alpha1.WorkflowSpec{
+			Repository: &workflowsv1alpha1.Repository{
+				Owner: "john-doe",
+				Name:  "my-repo",
+			},
+		},
 	}
 
 	event, err := readEvent()
@@ -27,6 +33,7 @@ func TestExpand(t *testing.T) {
 		result string
 	}{
 		{"$(workflow.name)", "hello-world"},
+		{"--repo $(workflow.repo.owner)/$(workflow.repo.name)", "--repo john-doe/my-repo"},
 		{"Hello $(event{.sender.login}), thank you for the commit $(event{.head_commit.id})", "Hello john-doe, thank you for the commit 833568e"},
 		{"$(workspaces.project.path)", "$(workspaces.project.path)"},
 	}

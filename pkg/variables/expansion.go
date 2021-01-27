@@ -22,7 +22,9 @@ type Replacements struct {
 func MakeReplacements(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Replacements {
 	replacements := &Replacements{
 		specialVariables: map[string]string{
-			"workflow.name": workflow.GetName(),
+			"workflow.name":       workflow.GetName(),
+			"workflow.repo.owner": workflow.Spec.Repository.Owner,
+			"workflow.repo.name":  workflow.Spec.Repository.Name,
 		},
 		event: event,
 	}
@@ -33,12 +35,13 @@ func MakeReplacements(workflow *workflowsv1alpha1.Workflow, event *github.Event)
 // Expand ...
 func Expand(text string, replacements *Replacements) string {
 	return expressionPattern.ReplaceAllStringFunc(text, func(match string) string {
-		submatches := expressionPattern.FindStringSubmatch(text)
+		submatches := expressionPattern.FindStringSubmatch(match)
 		if submatches == nil {
 			return match
 		}
 
-		key := submatches[len(submatches)-1]
+		key := submatches[1]
+
 		value, ok := applyReplacement(key, replacements)
 		if !ok {
 			return match
@@ -50,8 +53,11 @@ func Expand(text string, replacements *Replacements) string {
 // applyReplacement ...
 func applyReplacement(key string, replacements *Replacements) (string, bool) {
 	if matches := eventPattern.FindStringSubmatch(key); matches != nil {
-		jsonPathExpr := matches[len(matches)-1]
-		result, _ := query(replacements.event, jsonPathExpr)
+		jsonPathExpr := matches[1]
+		result, err := query(replacements.event, jsonPathExpr)
+		if err != nil {
+			return "", false
+		}
 		return result, true
 	}
 
