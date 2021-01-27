@@ -22,9 +22,10 @@ type Replacements struct {
 func MakeReplacements(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Replacements {
 	replacements := &Replacements{
 		specialVariables: map[string]string{
-			"workflow.name":       workflow.GetName(),
-			"workflow.repo.owner": workflow.Spec.Repository.Owner,
-			"workflow.repo.name":  workflow.Spec.Repository.Name,
+			"workflow.name":        workflow.GetName(),
+			"workflow.repo.owner":  workflow.Spec.Repository.Owner,
+			"workflow.repo.name":   workflow.Spec.Repository.Name,
+			"workflow.head-commit": event.HeadCommitSHA,
 		},
 		event: event,
 	}

@@ -5,43 +5,49 @@ import (
 
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	"github.com/nubank/workflows/pkg/github"
+	"github.com/nubank/workflows/pkg/variables"
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// defaultImage is the image used in steps when none is set.
-const defaultImage = "gcr.io/google-containers/busybox"
-
 // Builder builds Tekton PipelineRun objects.
 type Builder struct {
 	builtInActions []BuiltInAction
 	event          *github.Event
+	replacements   *variables.Replacements
 	workflow       *workflowsv1alpha1.Workflow
 }
 
-// From returns a new Builder object that builds Tekton PipelineRuns from the provided Workflow.
-func From(workflow *workflowsv1alpha1.Workflow) *Builder {
+// NewBuilder returns a new Builder object that builds Tekton PipelineRuns from
+// the provided workflow and event.
+func NewBuilder(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Builder {
 	return &Builder{
 		builtInActions: make([]BuiltInAction, 0),
+		event:          event,
+		replacements:   variables.MakeReplacements(workflow, event),
 		workflow:       workflow,
 	}
 }
 
-// And returns the same Builder object with the supplied Event object set.
-func (b *Builder) And(event *github.Event) *Builder {
-	b.event = event
-	return b
-}
-
 // Build returns a new PipelineRun object.
 func (b *Builder) Build() *pipelinev1beta1.PipelineRun {
-	pipelineRun := &pipelinev1beta1.PipelineRun{ObjectMeta: metav1.ObjectMeta{GenerateName: fmt.Sprintf("%s-run", b.workflow.GetName()),
-		Namespace: b.workflow.GetNamespace()},
-		Spec: pipelinev1beta1.PipelineRunSpec{PipelineSpec: b.buildPipelineSpec(),
+	pipelineRun := &pipelinev1beta1.PipelineRun{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("%s-run-", b.workflow.GetName()),
+			Namespace:    b.workflow.GetNamespace(),
+			Labels: map[string]string{
+				"workflows.dev/workflow": b.workflow.GetName(),
+			},
+			Annotations: make(map[string]string),
+		},
+		Spec: pipelinev1beta1.PipelineRunSpec{
+			PipelineSpec: b.buildPipelineSpec(),
 			TaskRunSpecs: b.buildTaskRunSpecs(),
 		},
 	}
+
+	b.copyLabelsAndAnnotations(pipelineRun)
 
 	// Let built-in actions to modify the PipelineRun resource.
 	for _, action := range b.builtInActions {
@@ -139,30 +145,23 @@ func (b *Builder) buildStepTemplate(task *workflowsv1alpha1.Task) *corev1.Contai
 }
 
 func (b *Builder) buildStep(embeddedStep workflowsv1alpha1.EmbeddedStep) pipelinev1beta1.Step {
-	step := pipelinev1beta1.Step{}
-
-	if embeddedStep.Image != "" {
-		step.Image = embeddedStep.Image
-	} else {
-		step.Image = defaultImage
-	}
-
-	step.ImagePullPolicy = "Always"
-
-	if embeddedStep.Name != "" {
-		step.Name = embeddedStep.Name
-	}
-
-	step.Script = fmt.Sprintf(`#!/usr/bin/env sh
-set -o errexit
-set -o nounset
+	script := fmt.Sprintf(`#!/usr/bin/env sh
+set -euo pipefail
 %s`, embeddedStep.Run)
+
+	step := pipelinev1beta1.Step{
+		Container: corev1.Container{
+			Name:            embeddedStep.Name,
+			Image:           embeddedStep.Image,
+			ImagePullPolicy: "Always",
+			WorkingDir:      embeddedStep.WorkingDir,
+		},
+		Script: variables.Expand(script, b.replacements),
+	}
 
 	if embeddedStep.Env != nil {
 		step.Env = b.buildEnv(embeddedStep.Env)
 	}
-
-	step.WorkingDir = embeddedStep.WorkingDir
 
 	return step
 }
@@ -222,4 +221,17 @@ func (b *Builder) buildTaskRunSpecs() []pipelinev1beta1.PipelineTaskRunSpec {
 	}
 
 	return taskRunSpecs
+}
+
+// copyLabelsAndAnnotations copies all labels and annotations in the workflow to
+// the supplied pipelineRun.
+// All variables declared in labels and/or in annotations are expanded.
+func (b *Builder) copyLabelsAndAnnotations(pipelineRun *pipelinev1beta1.PipelineRun) {
+	for key, value := range b.workflow.Labels {
+		pipelineRun.Labels[key] = variables.Expand(value, b.replacements)
+	}
+
+	for key, value := range b.workflow.Annotations {
+		pipelineRun.Annotations[key] = variables.Expand(value, b.replacements)
+	}
 }

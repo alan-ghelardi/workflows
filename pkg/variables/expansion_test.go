@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
+	"github.com/nubank/workflows/pkg/testutils"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -21,7 +22,7 @@ func TestExpand(t *testing.T) {
 		},
 	}
 
-	event, err := readEvent()
+	event, err := testutils.ReadEvent("push-event.json")
 	if err != nil {
 		t.Fatalf("Error reading event from testdata: %v", err)
 	}
@@ -34,7 +35,10 @@ func TestExpand(t *testing.T) {
 	}{
 		{"$(workflow.name)", "hello-world"},
 		{"--repo $(workflow.repo.owner)/$(workflow.repo.name)", "--repo john-doe/my-repo"},
+		{"--revision=$(workflow.head-commit)", "--revision=833568e"},
+		{"$(event {.forced})", "false"},
 		{"Hello $(event{.sender.login}), thank you for the commit $(event{.head_commit.id})", "Hello john-doe, thank you for the commit 833568e"},
+		{"This is an invalid variable $(workflow.invalid-key)", "This is an invalid variable $(workflow.invalid-key)"},
 		{"$(workspaces.project.path)", "$(workspaces.project.path)"},
 	}
 

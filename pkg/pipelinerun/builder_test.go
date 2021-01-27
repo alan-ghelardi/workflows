@@ -1,7 +1,7 @@
 package pipelinerun
 
 import (
-	"reflect"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,118 +11,31 @@ import (
 
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
-	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
+	"github.com/nubank/workflows/pkg/github"
+	"github.com/nubank/workflows/pkg/testutils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func newWorkflowWithExistingTasks() *workflowsv1alpha1.Workflow {
-	return &workflowsv1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-1",
-			Namespace: "dev",
-		},
-		Spec: workflowsv1alpha1.WorkflowSpec{
-			Description: "FIXME",
-			Tasks: map[string]*workflowsv1alpha1.Task{
-				"build": &workflowsv1alpha1.Task{
-					Use:            "golang-builder",
-					ServiceAccount: "sa-1",
-				},
-
-				"test": &workflowsv1alpha1.Task{
-					Use:            "golang-testing",
-					ServiceAccount: "sa-2",
-					PodTemplate:    &pipelinev1beta1.PodTemplate{NodeSelector: map[string]string{"x": "y"}},
-					Retries:        2,
-					Timeout:        &metav1.Duration{Duration: 1 * time.Hour},
-				},
-			},
-		},
-	}
-}
-
-func newWorkflowWithEmbeddedTasks() *workflowsv1alpha1.Workflow {
-	return &workflowsv1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-2",
-			Namespace: "dev",
-		},
-		Spec: workflowsv1alpha1.WorkflowSpec{
-			Tasks: map[string]*workflowsv1alpha1.Task{
-				"lint": &workflowsv1alpha1.Task{Env: map[string]string{"ENV_VAR_1": "x"},
-					Steps: []workflowsv1alpha1.EmbeddedStep{
-						{Name: "golangci-lint",
-							Image: "golang",
-							Run:   "golangci-lint run",
-						},
-					},
-				},
-
-				"test": &workflowsv1alpha1.Task{
-					Resources: basicContainerResources(),
-					Steps: []workflowsv1alpha1.EmbeddedStep{
-						{Image: "golang",
-							Env: map[string]string{"ENV_VAR_2": "y"},
-							Run: "go test ./...",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func basicContainerResources() corev1.ResourceList {
-	cpu, _ := resource.ParseQuantity("1m")
-	memory, _ := resource.ParseQuantity("2Gi")
-	return corev1.ResourceList{corev1.ResourceCPU: cpu,
-		corev1.ResourceMemory: memory,
-	}
-}
-
-func newMinimalWorkflow() *workflowsv1alpha1.Workflow {
-	return &workflowsv1alpha1.Workflow{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-3",
-			Namespace: "dev",
-		},
-		Spec: workflowsv1alpha1.WorkflowSpec{
-			Tasks: map[string]*workflowsv1alpha1.Task{
-				"hello": &workflowsv1alpha1.Task{
-					Steps: []workflowsv1alpha1.EmbeddedStep{
-						{Run: "echo Hello!"},
-					},
-				},
-			},
-		},
-	}
-}
-
-func getPipelineTaskOrFail(t *testing.T, pipelineRun *pipelinev1beta1.PipelineRun, taskName string) pipelinev1beta1.PipelineTask {
+func getPipelineTaskOrFail(t *testing.T, pipelineRun *pipelinev1beta1.PipelineRun, taskName string) (pipelinev1beta1.PipelineTask, error) {
 	for _, x := range pipelineRun.Spec.PipelineSpec.Tasks {
 		if taskName == x.Name {
-			return x
+			return x, nil
 		}
 	}
 
-	t.Errorf("No such pipeline task `%s` in the graph", taskName)
-	t.FailNow()
-
-	return pipelinev1beta1.PipelineTask{}
-}
-
-func comparePipelineTasks(t *testing.T, want, got pipelinev1beta1.PipelineTask) {
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Mismatch (-want +got):\n%s", diff)
-	}
+	return pipelinev1beta1.PipelineTask{}, fmt.Errorf("No such pipeline task `%s` in the graph", taskName)
 }
 
 func TestPipelineRunGenerateName(t *testing.T) {
-	workflow := newWorkflowWithExistingTasks()
-	pipelineRun := From(workflow).Build()
+	workflow, err := testutils.ReadWorkflow("referencing-existing-tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	want := "test-1-run"
+	pipelineRun := NewBuilder(workflow, &github.Event{}).Build()
+
+	want := "hello-world-run-"
 	got := pipelineRun.ObjectMeta.GenerateName
 	if want != got {
 		t.Errorf("Want %s, got %s", want, got)
@@ -130,9 +43,12 @@ func TestPipelineRunGenerateName(t *testing.T) {
 }
 
 func TestPipelineRunNamespace(t *testing.T) {
-	workflow := newWorkflowWithExistingTasks()
-	pipelineRun := From(workflow).Build()
+	workflow, err := testutils.ReadWorkflow("referencing-existing-tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	pipelineRun := NewBuilder(workflow, &github.Event{}).Build()
 	want := "dev"
 	got := pipelineRun.ObjectMeta.Namespace
 	if want != got {
@@ -141,8 +57,12 @@ func TestPipelineRunNamespace(t *testing.T) {
 }
 
 func TestPipelineDescription(t *testing.T) {
-	workflow := newWorkflowWithExistingTasks()
-	pipelineRun := From(workflow).Build()
+	workflow, err := testutils.ReadWorkflow("referencing-existing-tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRun := NewBuilder(workflow, &github.Event{}).Build()
 
 	want := "FIXME"
 	got := pipelineRun.Spec.PipelineSpec.Description
@@ -152,8 +72,12 @@ func TestPipelineDescription(t *testing.T) {
 }
 
 func TestPipelineTasksWithTaskRefs(t *testing.T) {
-	workflow := newWorkflowWithExistingTasks()
-	pipelineRun := From(workflow).Build()
+	workflow, err := testutils.ReadWorkflow("referencing-existing-tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRun := NewBuilder(workflow, &github.Event{}).Build()
 
 	wantBuild := pipelinev1beta1.PipelineTask{Name: "build",
 		TaskRef: &pipelinev1beta1.TaskRef{Name: "golang-builder"},
@@ -165,101 +89,124 @@ func TestPipelineTasksWithTaskRefs(t *testing.T) {
 		Timeout: &metav1.Duration{Duration: 1 * time.Hour},
 	}
 
-	gotBuild := getPipelineTaskOrFail(t, pipelineRun, "build")
+	gotBuild, err := getPipelineTaskOrFail(t, pipelineRun, "build")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	gotTest := getPipelineTaskOrFail(t, pipelineRun, "test")
+	gotTest, err := getPipelineTaskOrFail(t, pipelineRun, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	comparePipelineTasks(t, wantBuild, gotBuild)
+	if diff := cmp.Diff(wantBuild, gotBuild); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
 
-	comparePipelineTasks(t, wantTest, gotTest)
+	if diff := cmp.Diff(wantTest, gotTest); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestPipelineTasksWithEmbeddedTasks(t *testing.T) {
-	workflow := newWorkflowWithEmbeddedTasks()
-	pipelineRun := From(workflow).Build()
+	workflow, err := testutils.ReadWorkflow("embedding-tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	wantLint := pipelinev1beta1.PipelineTask{Name: "lint",
-		TaskSpec: &pipelinev1beta1.EmbeddedTask{TaskSpec: pipelinev1beta1.TaskSpec{StepTemplate: &corev1.Container{Env: []corev1.EnvVar{{Name: "ENV_VAR_1",
-			Value: "x",
-		},
-		},
-		},
-			Steps: []pipelinev1beta1.Step{{Container: corev1.Container{Name: "golangci-lint",
-				Image:           "golang",
-				ImagePullPolicy: "Always",
-			},
-				Script: `#!/usr/bin/env sh
-set -o errexit
-set -o nounset
+	pipelineRun := NewBuilder(workflow, &github.Event{}).Build()
+
+	wantLint := pipelinev1beta1.PipelineTask{
+		Name: "lint",
+		TaskSpec: &pipelinev1beta1.EmbeddedTask{
+			TaskSpec: pipelinev1beta1.TaskSpec{
+				StepTemplate: &corev1.Container{
+					Env: []corev1.EnvVar{
+						{Name: "ENV_VAR_1", Value: "a"},
+					},
+				},
+				Steps: []pipelinev1beta1.Step{{Container: corev1.Container{
+					Name:            "golangci-lint",
+					Image:           "golang",
+					ImagePullPolicy: "Always",
+				},
+					Script: `#!/usr/bin/env sh
+set -euo pipefail
 golangci-lint run`,
+				},
+				},
 			},
-			},
-		},
 		},
 	}
 
-	wantTest := pipelinev1beta1.PipelineTask{Name: "test",
-		TaskSpec: &pipelinev1beta1.EmbeddedTask{TaskSpec: pipelinev1beta1.TaskSpec{StepTemplate: &corev1.Container{Resources: corev1.ResourceRequirements{Limits: basicContainerResources(),
-			Requests: basicContainerResources(),
-		},
-		},
-			Steps: []pipelinev1beta1.Step{{Container: corev1.Container{Image: "golang",
-				ImagePullPolicy: "Always",
-				Env: []corev1.EnvVar{{Name: "ENV_VAR_2",
-					Value: "y",
+	cpu, _ := resource.ParseQuantity("1m")
+	memory, _ := resource.ParseQuantity("2Gi")
+	resources := corev1.ResourceList{
+		corev1.ResourceCPU:    cpu,
+		corev1.ResourceMemory: memory,
+	}
+
+	wantTest := pipelinev1beta1.PipelineTask{
+		Name: "test",
+		TaskSpec: &pipelinev1beta1.EmbeddedTask{
+			TaskSpec: pipelinev1beta1.TaskSpec{
+				StepTemplate: &corev1.Container{
+					Resources: corev1.ResourceRequirements{
+						Limits:   resources,
+						Requests: resources,
+					},
 				},
+				Steps: []pipelinev1beta1.Step{{Container: corev1.Container{
+					Name:            "test",
+					Image:           "golang",
+					ImagePullPolicy: "Always",
+					Env: []corev1.EnvVar{
+						{Name: "ENV_VAR_2", Value: "b"},
+					},
 				},
-			},
-				Script: `#!/usr/bin/env sh
-set -o errexit
-set -o nounset
+					Script: `#!/usr/bin/env sh
+set -euo pipefail
 go test ./...`,
+				},
+				},
 			},
-			},
-		},
 		},
 	}
 
-	gotLint := getPipelineTaskOrFail(t, pipelineRun, "lint")
-	gotTest := getPipelineTaskOrFail(t, pipelineRun, "test")
-
-	comparePipelineTasks(t, wantLint, gotLint)
-	comparePipelineTasks(t, wantTest, gotTest)
-}
-
-func TestEmbeddedTaskWithDefaultImage(t *testing.T) {
-	workflow := newMinimalWorkflow()
-	pipelineRun := From(workflow).Build()
-
-	want := pipelinev1beta1.PipelineTask{Name: "hello",
-		TaskSpec: &pipelinev1beta1.EmbeddedTask{TaskSpec: pipelinev1beta1.TaskSpec{Steps: []pipelinev1beta1.Step{{Container: corev1.Container{Image: "gcr.io/google-containers/busybox",
-			ImagePullPolicy: "Always",
-		},
-			Script: `#!/usr/bin/env sh
-set -o errexit
-set -o nounset
-echo Hello!`,
-		},
-		},
-		},
-		},
+	gotLint, err := getPipelineTaskOrFail(t, pipelineRun, "lint")
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	got := getPipelineTaskOrFail(t, pipelineRun, "hello")
+	gotTest, err := getPipelineTaskOrFail(t, pipelineRun, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	comparePipelineTasks(t, want, got)
+	if diff := cmp.Diff(wantLint, gotLint); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff(wantTest, gotTest); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestTaskRunSpecs(t *testing.T) {
-	workflow := newWorkflowWithExistingTasks()
-	pipelineRun := From(workflow).Build()
+	workflow, err := testutils.ReadWorkflow("referencing-existing-tasks.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRun := NewBuilder(workflow, &github.Event{}).Build()
 
 	tests := []struct {
 		name           string
 		serviceAccount string
 		podTemplate    *pipelinev1beta1.PodTemplate
-	}{{"build", "sa-1", nil},
-		{"test", "sa-2", &pipelinev1beta1.PodTemplate{NodeSelector: map[string]string{"x": "y"}}},
+	}{
+		{"build", "sa-1", nil},
+		{"test", "sa-2", &pipelinev1beta1.PodTemplate{NodeSelector: map[string]string{"label": "value"}}},
 	}
 
 	for _, test := range tests {
@@ -273,16 +220,63 @@ func TestTaskRunSpecs(t *testing.T) {
 		}
 
 		if taskRunSpec == nil {
-			t.Errorf("No such TaskRunSpec %s", test.name)
-			t.FailNow()
+			t.Fatalf("Error: no such TaskRunSpec %s", test.name)
 		}
 
 		if test.serviceAccount != taskRunSpec.TaskServiceAccountName {
-			t.Errorf("Error at TaskRunSpec %s: want service account %s, got %s", test.name, test.serviceAccount, taskRunSpec.TaskServiceAccountName)
+			t.Errorf("Fail at task %s.\nMismatch in TaskRunSpec.ServiceAccount: want service account %s, got %s", test.name, test.serviceAccount, taskRunSpec.TaskServiceAccountName)
 		}
 
-		if !reflect.DeepEqual(test.podTemplate, taskRunSpec.TaskPodTemplate) {
-			t.Errorf("Error at TaskRunSpec %s: want pod template %+v, got %+v", test.name, test.podTemplate, taskRunSpec.TaskPodTemplate)
+		if diff := cmp.Diff(test.podTemplate, taskRunSpec.TaskPodTemplate); diff != "" {
+			t.Errorf("Fail at task %s.\nMismatches in TaskRunSpec.PodTemplate (-want +got):\n%s", test.name, diff)
 		}
+	}
+}
+
+func TestVariableExpansion(t *testing.T) {
+	workflow, err := testutils.ReadWorkflow("variables.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := testutils.ReadEvent("event.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRun := NewBuilder(workflow, event).Build()
+
+	wantLabels := map[string]string{
+		"workflows.dev/workflow":    "hello",
+		"workflows.dev/head-commit": "833568e",
+	}
+
+	gotLabels := pipelineRun.Labels
+
+	if diff := cmp.Diff(wantLabels, gotLabels); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
+
+	wantAnnotations := map[string]string{
+		"workflows.dev/author": "john-doe",
+	}
+
+	gotAnnotations := pipelineRun.Annotations
+
+	if diff := cmp.Diff(wantAnnotations, gotAnnotations); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
+
+	wantScript := `#!/usr/bin/env sh
+set -euo pipefail
+echo "Hello john-doe!"
+echo "Thank you for running the workflow hello"
+echo "The PipelineRun $(context.pipelineRun.name) has been created"
+`
+
+	gotScript := pipelineRun.Spec.PipelineSpec.Tasks[0].TaskSpec.Steps[0].Script
+
+	if diff := cmp.Diff(wantScript, gotScript); diff != "" {
+		t.Errorf("Mismatch (-want +got): %s\n", diff)
 	}
 }

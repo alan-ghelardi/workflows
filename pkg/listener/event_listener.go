@@ -72,9 +72,7 @@ func (e *EventListener) RunWorkflow(ctx context.Context, namespacedName types.Na
 		return Forbidden(message)
 	}
 
-	pipelineRun := pipelinerun.From(workflow).
-		And(event).
-		Build()
+	pipelineRun := pipelinerun.NewBuilder(workflow, event).Build()
 	createdPipelineRun, err := e.TektonClientSet.TektonV1beta1().PipelineRuns(workflow.GetNamespace()).Create(ctx, pipelineRun, metav1.CreateOptions{})
 
 	if err != nil {

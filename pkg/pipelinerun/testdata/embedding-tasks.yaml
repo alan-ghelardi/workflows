@@ -1,0 +1,30 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: test-2
+  namespace: dev
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+
+  tasks:
+
+    lint:
+      env:
+        ENV_VAR_1: a
+      steps:
+      - name: golangci-lint
+        image: golang
+        run: golangci-lint run
+
+    test:
+      resources:
+        cpu: 1m
+        memory: 2Gi
+      steps:
+      - name: test
+        env:
+          ENV_VAR_2: b
+        image: golang
+        run: go test ./...

@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nubank/workflows/pkg/testutils"
 )
 
 func TestQuery(t *testing.T) {
-	event, err := readEvent()
+	event, err := testutils.ReadEvent("push-event.json")
 	if err != nil {
 		t.Fatal(err)
 	}
