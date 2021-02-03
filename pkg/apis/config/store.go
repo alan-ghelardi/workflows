@@ -23,9 +23,9 @@ func Get(ctx context.Context) *Config {
 	return nil
 }
 
-// withConfig attaches the provided Config to the provided context, returning the
+// WithConfig attaches the provided Config to the provided context, returning the
 // new context with the Config attached.
-func withConfig(ctx context.Context, c *Config) context.Context {
+func WithConfig(ctx context.Context, c *Config) context.Context {
 	return context.WithValue(ctx, configKey{}, c)
 }
 
@@ -53,14 +53,14 @@ func NewStore(logger configmap.Logger, onAfterStore ...func(name string, value i
 
 // WithConfig attaches the current Config state to the provided context.
 func (s *Store) WithConfig(ctx context.Context) context.Context {
-	return withConfig(ctx, s.Load())
+	return WithConfig(ctx, s.Load())
 }
 
 // Load creates a Config from the current config state of the Store.
 func (s *Store) Load() *Config {
 	config := &Config{}
-	if def, ok := s.UntypedLoad(DefaultsConfigName).(*Defaults); ok {
-		config.Defaults = def.DeepCopy()
+	if defaults, ok := s.UntypedLoad(DefaultsConfigName).(*Defaults); ok {
+		config.Defaults = defaults.DeepCopy()
 	}
 	return config
 }
