@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -29,6 +30,14 @@ import (
 	"knative.dev/pkg/kmeta"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	triggerEndpointPath = "/api/%s/namespaces/%s/workflows/%s/trigger"
+
+	webhookIDFormat = "workflows.dev/github.%s.%s.webhook-id"
+
+	deployKeyIDFormat = "workflows.dev/github.%s.%s.key-id"
 )
 
 // +genclient
@@ -59,11 +68,6 @@ func (w *Workflow) GetRepositories() []Repository {
 	repos = append(repos, w.Spec.AdditionalRepositories...)
 	return repos
 }
-
-const (
-	webhookIDFormat   = "workflows.dev/github.%s.%s.webhook-id"
-	deployKeyIDFormat = "workflows.dev/github.%s.%s.key-id"
-)
 
 // GetDeployKeyID returns the id of a deploy key associated to the repository in
 // question or nil if no deploy key has been created yet.
@@ -113,7 +117,7 @@ func (w *Workflow) SetWebhookID(id int64) {
 	w.Status.Annotations[fmt.Sprintf(webhookIDFormat, repo.Owner, repo.Name)] = fmt.Sprint(id)
 }
 
-// GetDeployKeysSecretName returns the name of the private SSH key associated to
+// GetDeployKeysSecretName returns the name of the private SSH keys associated to
 // this workflow.
 func (w *Workflow) GetDeployKeysSecretName() string {
 	return fmt.Sprintf("%s-ssh-private-keys", w.GetName())
@@ -122,6 +126,17 @@ func (w *Workflow) GetDeployKeysSecretName() string {
 // GetWebhookSecretName returns the name of the Webhook secret associated to this workflow.
 func (w *Workflow) GetWebhookSecretName() string {
 	return fmt.Sprintf("%s-webhook-secret", w.GetName())
+}
+
+// GetTriggerURL returns the URL that Github Webhooks must use to triger this
+// workflow.
+func (w *Workflow) GetTriggerURL() string {
+	baseURL := w.Spec.Webhook.URL
+	if strings.HasSuffix(baseURL, "/") {
+		// Drop the trailing slash
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+	return baseURL + fmt.Sprintf(triggerEndpointPath, workflowsVersion, w.GetNamespace(), w.GetName())
 }
 
 // WorkflowSpec defines the desired state of Workflow objects.

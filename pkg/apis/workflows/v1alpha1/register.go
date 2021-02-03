@@ -24,8 +24,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+const workflowsVersion = "v1alpha1"
+
 // SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = schema.GroupVersion{Group: workflows.GroupName, Version: "v1alpha1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: workflows.GroupName, Version: workflowsVersion}
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind
 func Kind(kind string) schema.GroupKind {

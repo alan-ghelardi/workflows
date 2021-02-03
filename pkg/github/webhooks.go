@@ -97,7 +97,7 @@ func (w *WebhookReconciler) getWebhook(ctx context.Context, workflow *v1alpha1.W
 func (w *WebhookReconciler) changedSinceLastSync(workflow *v1alpha1.Workflow, hook *github.Hook) bool {
 	return !hook.GetActive() ||
 		!reflect.DeepEqual(workflow.Spec.Events, hook.Events) ||
-		workflow.Spec.Webhook.URL != hook.Config["url"] ||
+		workflow.GetTriggerURL() != hook.Config["url"] ||
 		hook.Config["content_type"] != "json" ||
 		hook.Config["insecure_ssl"] != "0"
 }
@@ -132,7 +132,7 @@ func (w *WebhookReconciler) newHook(workflow *v1alpha1.Workflow, secret *string)
 	hook := &github.Hook{Active: github.Bool(true),
 		Events: workflow.Spec.Events,
 		Config: map[string]interface{}{
-			"url":          workflow.Spec.Webhook.URL,
+			"url":          workflow.GetTriggerURL(),
 			"content_type": "json",
 			"insecure_ssl": "0",
 		},
