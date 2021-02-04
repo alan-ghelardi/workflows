@@ -30,6 +30,16 @@ spec:
         - name: metrics
           containerPort: 9090
         env:
+        - name: GITHUB_APP_ID
+          valueFrom:
+            configMapKeyRef:
+              name: config-github-app
+              key: app-id
+        - name: GITHUB_INSTALLATION_ID
+          valueFrom:
+            configMapKeyRef:
+              name: config-github-app
+              key: installation-id
         - name: SYSTEM_NAMESPACE
           valueFrom:
             fieldRef:
@@ -40,3 +50,12 @@ spec:
           value: config-observability
         - name: METRICS_DOMAIN
           value: workflows.dev/workflows
+
+        volumeMounts:
+        - name: github-app-private-key
+          mountPath: /var/run/secrets/github
+
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: github-app-private-key
