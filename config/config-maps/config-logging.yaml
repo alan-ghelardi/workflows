@@ -31,5 +31,5 @@ data:
     # Log level overrides
     # Changes are be picked up immediately.
     loglevel.controller: "info"
-    loglevel.eventlistener: "info"
+    loglevel.hooklistener: "info"
     loglevel.webhook: "info"

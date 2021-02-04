@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	githubClient := github.NewClient()
+	githubClient := github.NewClientOrDie()
 
 	ctx := injection.WithNamespaceScope(context.Background(), corev1.NamespaceAll)
 
