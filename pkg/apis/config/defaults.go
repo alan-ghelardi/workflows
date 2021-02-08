@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 
 	"github.com/ghodss/yaml"
 	corev1 "k8s.io/api/core/v1"
@@ -12,12 +13,20 @@ const (
 	// DefaultsConfigName is the name of config map for the defaults.
 	DefaultsConfigName = "config-defaults"
 
+	// defaultWorkflowsDir is the default directory where workflow
+	// configuration files are located inside the project.
+	defaultWorkflowsDir = ".tektoncd/workflows"
+
 	// fallbackImage is the image used by default when neither the task step nor the config-defaults declare one.
 	fallbackImage = "gcr.io/google-containers/busybox"
 )
 
 // +k8s:deepcopy-gen=true
 type Defaults struct {
+	// Directory where workflow config files are located inside the
+	// repository. It's relative to the top project folder.
+	WorkflowsDir string
+
 	// Default image to be used in steps when the task step doesn't declare one.
 	DefaultImage string
 
@@ -36,6 +45,16 @@ type Defaults struct {
 // parser is a function that turns the given string into a higher object and
 // sets it to the provided Defaults instance.
 type parser func(defaults *Defaults, value string) error
+
+func parseWorkflowsDir(defaults *Defaults, value string) error {
+	if filepath.IsAbs(value) {
+		return fmt.Errorf("Expected a relative path, but got an absolute one")
+	}
+
+	defaults.WorkflowsDir = value
+
+	return nil
+}
 
 func parseDefaultImage(defaults *Defaults, value string) error {
 	defaults.DefaultImage = value
@@ -74,6 +93,7 @@ func parseAnnotations(defaults *Defaults, value string) error {
 
 // parsers maps keys of known configs to a parser function.
 var parsers = map[string]parser{
+	"workflows-dir": parseWorkflowsDir,
 	"default-image": parseDefaultImage,
 	"webhook":       parseWebhook,
 	"labels":        parseLabels,
@@ -92,9 +112,14 @@ func NewDefaultsFromConfigMap(configMap *corev1.ConfigMap) (*Defaults, error) {
 		}
 	}
 
+	// Apply defaults for absent values
+
 	if defaults.DefaultImage == "" {
-		// Guarantee that at least the fallback image will be set
 		defaults.DefaultImage = fallbackImage
+	}
+
+	if defaults.WorkflowsDir == "" {
+		defaults.WorkflowsDir = defaultWorkflowsDir
 	}
 
 	return defaults, nil

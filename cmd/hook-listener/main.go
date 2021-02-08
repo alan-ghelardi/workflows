@@ -24,11 +24,9 @@ func main() {
 	defer logger.Sync()
 
 	ctx = logging.WithLogger(ctx, logger)
-	eventHandler := hooklistener.NewEventHandler()
-	routes := hooklistener.Routes(eventHandler)
-	server := hooklistener.NewServer(ctx, routes)
+	server := hooklistener.New(ctx)
 	go func() {
-		logger.Info("Starting hook listener API")
+		logger.Info("Starting hook-listener")
 
 		if err := server.ListenAndServe(); err != nil {
 			logger.Error(err)

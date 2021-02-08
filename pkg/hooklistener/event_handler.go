@@ -12,18 +12,21 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/logging"
 
+	"github.com/nubank/workflows/pkg/apis/config"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	"github.com/nubank/workflows/pkg/pipelinerun"
 	"github.com/nubank/workflows/pkg/secret"
 	tektonclientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // EventHandler handles incoming events from Github Webhooks by coordinating the
 // execution of Tekton PipelineRuns.
 type EventHandler struct {
+
+	// configStore holds up to date configuration.
+	configStore *config.Store
 
 	// KubeClientSet allows us to talk to the k8s for core APIs.
 	KubeClientSet kubernetes.Interface
@@ -31,8 +34,12 @@ type EventHandler struct {
 	// TektonClientSet allows us to configure pipeline objects.
 	TektonClientSet tektonclientset.Interface
 
-	// WorkflowsClientSet allows us to retrieve workflow objects.
+	// WorkflowsClientSet allows us to retrieve workflow objects from the Kubernetes cluster.
 	WorkflowsClientSet workflowsclientset.Interface
+
+	// workflowRetriever allows us to retrieve workflows declared directly
+	// in Github repositories.
+	workflowRetriever *github.WorkflowRetriever
 }
 
 // triggerWorkflow takes the event delivered by a Github Webhook and creates a
@@ -81,24 +88,4 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 
 	logger.Infow("PipelineRun has been successfully created", "tekton.dev/pipeline-run", createdPipelineRun.GetName())
 	return Created(fmt.Sprintf("PipelineRun %s has been successfully created", createdPipelineRun.GetName()))
-}
-
-// NewEventHandler returns a new EventHandler initializing all required client sets.
-// It panics if a in-cluster config can't be obtained or if any client set fails
-// to be created.
-func NewEventHandler() *EventHandler {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(fmt.Errorf("Error creating in-cluster config: %w", err))
-	}
-
-	kubeClient := kubernetes.NewForConfigOrDie(config)
-	tektonClient := tektonclientset.NewForConfigOrDie(config)
-	workflowsClient := workflowsclientset.NewForConfigOrDie(config)
-
-	return &EventHandler{
-		KubeClientSet:      kubeClient,
-		TektonClientSet:    tektonClient,
-		WorkflowsClientSet: workflowsClient,
-	}
 }

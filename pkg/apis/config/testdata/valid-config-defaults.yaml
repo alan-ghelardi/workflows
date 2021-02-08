@@ -3,6 +3,9 @@ kind: ConfigMap
 metadata:
   name: config-defaults
 data:
+
+  workflows-dir: .my-org/workflows
+
   default-image: ubuntu
 
   webhook: https://hooks.example.com
