@@ -51,8 +51,9 @@ func NewStore(logger configmap.Logger, onAfterStore ...func(name string, value i
 	return store
 }
 
-// WithConfig attaches the current Config state to the provided context.
-func (s *Store) WithConfig(ctx context.Context) context.Context {
+// ToContext attaches the current Config state to the provided context.
+// It implements knative.dev/pkg/reconciler.ToContext.
+func (s *Store) ToContext(ctx context.Context) context.Context {
 	return WithConfig(ctx, s.Load())
 }
 

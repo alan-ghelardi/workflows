@@ -37,9 +37,9 @@ type EventHandler struct {
 	// WorkflowsClientSet allows us to retrieve workflow objects from the Kubernetes cluster.
 	WorkflowsClientSet workflowsclientset.Interface
 
-	// workflowRetriever allows us to retrieve workflows declared directly
+	// WorkflowRetriever allows us to retrieve workflows declared directly
 	// in Github repositories.
-	workflowRetriever *github.WorkflowRetriever
+	WorkflowRetriever *github.WorkflowRetriever
 }
 
 // triggerWorkflow takes the event delivered by a Github Webhook and creates a

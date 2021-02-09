@@ -47,7 +47,7 @@ func NewDefaultingAdmissionController(ctx context.Context, cmw configmap.Watcher
 		types,
 
 		// A function that infuses the context passed to Validate/SetDefaults with custom metadata.
-		configStore.WithConfig,
+		configStore.ToContext,
 
 		// Whether to disallow unknown fields.
 		true,

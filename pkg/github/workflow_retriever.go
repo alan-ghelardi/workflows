@@ -15,14 +15,14 @@ type WorkflowRetriever interface {
 	GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error)
 }
 
-// defaultWorkflowRetriever is the default implementation of WorkflowRetriever
+// DefaultWorkflowRetriever is the default implementation of WorkflowRetriever
 // interface.
-type defaultWorkflowRetriever struct {
+type DefaultWorkflowRetriever struct {
 	service *github.Client
 }
 
 // GetWorkflowContent implements WorkflowRetriever.GetWorkflowContent.
-func (d *defaultWorkflowRetriever) GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error) {
+func (d *DefaultWorkflowRetriever) GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error) {
 	content, _, response, err := d.service.Repositories.GetContents(ctx,
 		workflow.Spec.Repository.Owner,
 		workflow.Spec.Repository.Name,
