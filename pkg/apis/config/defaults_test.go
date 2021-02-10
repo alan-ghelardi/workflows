@@ -18,19 +18,21 @@ func TestNewDefaults(t *testing.T) {
 	}{{
 		configMap: "valid-config-defaults.yaml",
 		defaults: &Defaults{
-			WorkflowsDir: ".my-org/workflows",
-			DefaultImage: "ubuntu",
-			Webhook:      "https://hooks.example.com",
-			Labels:       map[string]string{"workflows.dev/example-label": "example"},
-			Annotations:  map[string]string{"workflows.dev/example-annotation": "example"},
+			DefaultEvents: []string{"push", "pull_request"},
+			DefaultImage:  "ubuntu",
+			Webhook:       "https://hooks.example.com",
+			WorkflowsDir:  ".my-org/workflows",
+			Labels:        map[string]string{"workflows.dev/example-label": "example"},
+			Annotations:   map[string]string{"workflows.dev/example-annotation": "example"},
 		},
 		valid: true,
 	},
 		{
-			configMap: "config-defaults-without-default-image.yaml",
+			configMap: "empty-config-defaults.yaml",
 			defaults: &Defaults{
-				WorkflowsDir: defaultWorkflowsDir,
-				DefaultImage: fallbackImage,
+				DefaultEvents: defaultEvents,
+				DefaultImage:  defaultImage,
+				WorkflowsDir:  defaultWorkflowsDir,
 			},
 			valid: true,
 		},
@@ -48,6 +50,10 @@ func TestNewDefaults(t *testing.T) {
 		},
 		{
 			configMap: "invalid-config-defaults-4.yaml",
+			valid:     false,
+		},
+		{
+			configMap: "invalid-config-defaults-5.yaml",
 			valid:     false,
 		},
 	}

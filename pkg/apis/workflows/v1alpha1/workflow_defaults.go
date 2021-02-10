@@ -52,6 +52,10 @@ func (w *Workflow) SetDefaults(ctx context.Context) {
 func (ws *WorkflowSpec) SetDefaults(ctx context.Context) {
 	defaults := config.Get(ctx).Defaults
 
+	if ws.Events == nil {
+		ws.Events = defaults.DefaultEvents
+	}
+
 	if ws.Webhook == nil && defaults.Webhook != "" {
 		ws.Webhook = &Webhook{URL: defaults.Webhook}
 	}

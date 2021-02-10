@@ -4,11 +4,13 @@ metadata:
   name: config-defaults
 data:
 
-  workflows-dir: .my-org/workflows
+  default-events: "[push, pull_request]"
 
   default-image: ubuntu
 
   webhook: https://hooks.example.com
+
+  workflows-dir: .my-org/workflows
 
   labels: |
     workflows.dev/example-label: example

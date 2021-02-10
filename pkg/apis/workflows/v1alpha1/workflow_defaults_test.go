@@ -81,8 +81,9 @@ func TestWorkflowDefaulting(t *testing.T) {
 func TestWorkflowSpecDefaulting(t *testing.T) {
 	configs := &config.Config{
 		Defaults: &config.Defaults{
-			DefaultImage: "ubuntu",
-			Webhook:      "https://hooks.example.com",
+			DefaultEvents: []string{"push"},
+			DefaultImage:  "ubuntu",
+			Webhook:       "https://hooks.example.com",
 		},
 	}
 
@@ -99,14 +100,30 @@ func TestWorkflowSpecDefaulting(t *testing.T) {
 			Webhook: &Webhook{
 				URL: "https://hooks.example.com",
 			},
+			Events: []string{"push"},
 		},
 	},
+		{
+			name: "add default events",
+			in: &WorkflowSpec{
+				Webhook: &Webhook{
+					URL: "https://hooks.example.dev",
+				},
+			},
+			want: &WorkflowSpec{
+				Webhook: &Webhook{
+					URL: "https://hooks.example.dev",
+				},
+				Events: []string{"push"},
+			},
+		},
 		{
 			name: "add default image",
 			in: &WorkflowSpec{
 				Webhook: &Webhook{
 					URL: "https://hooks.example.dev",
 				},
+				Events: []string{"pull_request"},
 				Tasks: map[string]*Task{
 					"build": &Task{
 						Steps: []EmbeddedStep{{
@@ -119,6 +136,7 @@ func TestWorkflowSpecDefaulting(t *testing.T) {
 				Webhook: &Webhook{
 					URL: "https://hooks.example.dev",
 				},
+				Events: []string{"pull_request"},
 				Tasks: map[string]*Task{
 					"build": &Task{
 						Steps: []EmbeddedStep{{

@@ -10,28 +10,36 @@ import (
 )
 
 const (
+
 	// DefaultsConfigName is the name of config map for the defaults.
 	DefaultsConfigName = "config-defaults"
+
+	// defaultImage is the image used by default when neither the task step nor the config-defaults declare one.
+	defaultImage = "gcr.io/google-containers/busybox"
 
 	// defaultWorkflowsDir is the default directory where workflow
 	// configuration files are located inside the project.
 	defaultWorkflowsDir = ".tektoncd/workflows"
-
-	// fallbackImage is the image used by default when neither the task step nor the config-defaults declare one.
-	fallbackImage = "gcr.io/google-containers/busybox"
 )
+
+// defaultEvents contains the events that trigger workflows when more specific ones weren't set.
+var defaultEvents = []string{"push"}
 
 // +k8s:deepcopy-gen=true
 type Defaults struct {
-	// Directory where workflow config files are located inside the
-	// repository. It's relative to the top project folder.
-	WorkflowsDir string
+
+	// Github events that trigger workflows.
+	DefaultEvents []string
 
 	// Default image to be used in steps when the task step doesn't declare one.
 	DefaultImage string
 
 	// Default Webhook URL to be applied to workflows that do not declare a more specific one.
 	Webhook string
+
+	// Directory where workflow config files are located inside the
+	// repository. It's relative to the top project folder.
+	WorkflowsDir string
 
 	// Labels to be applied to all PipelineRun objects created by workflows.
 	// Useful for defining common metadata observed by other controllers.
@@ -46,12 +54,12 @@ type Defaults struct {
 // sets it to the provided Defaults instance.
 type parser func(defaults *Defaults, value string) error
 
-func parseWorkflowsDir(defaults *Defaults, value string) error {
-	if filepath.IsAbs(value) {
-		return fmt.Errorf("Expected a relative path, but got an absolute one")
+func parseDefaultEvents(defaults *Defaults, value string) error {
+	var events []string
+	if err := yaml.Unmarshal([]byte(value), &events); err != nil {
+		return fmt.Errorf("Invalid events: %s", err)
 	}
-
-	defaults.WorkflowsDir = value
+	defaults.DefaultEvents = events
 
 	return nil
 }
@@ -67,6 +75,16 @@ func parseWebhook(defaults *Defaults, value string) error {
 		return fmt.Errorf("Invalid Webhook URL: %w", err)
 	}
 	defaults.Webhook = value
+
+	return nil
+}
+
+func parseWorkflowsDir(defaults *Defaults, value string) error {
+	if filepath.IsAbs(value) {
+		return fmt.Errorf("Expected a relative path, but got an absolute one")
+	}
+
+	defaults.WorkflowsDir = value
 
 	return nil
 }
@@ -93,11 +111,12 @@ func parseAnnotations(defaults *Defaults, value string) error {
 
 // parsers maps keys of known configs to a parser function.
 var parsers = map[string]parser{
-	"workflows-dir": parseWorkflowsDir,
-	"default-image": parseDefaultImage,
-	"webhook":       parseWebhook,
-	"labels":        parseLabels,
-	"annotations":   parseAnnotations,
+	"default-events": parseDefaultEvents,
+	"default-image":  parseDefaultImage,
+	"webhook":        parseWebhook,
+	"workflows-dir":  parseWorkflowsDir,
+	"labels":         parseLabels,
+	"annotations":    parseAnnotations,
 }
 
 // NewDefaultsFromConfigMap takes a ConfigMap and returns a Defaults object.
@@ -114,8 +133,12 @@ func NewDefaultsFromConfigMap(configMap *corev1.ConfigMap) (*Defaults, error) {
 
 	// Apply defaults for absent values
 
+	if defaults.DefaultEvents == nil || len(defaults.DefaultEvents) == 0 {
+		defaults.DefaultEvents = defaultEvents
+	}
+
 	if defaults.DefaultImage == "" {
-		defaults.DefaultImage = fallbackImage
+		defaults.DefaultImage = defaultImage
 	}
 
 	if defaults.WorkflowsDir == "" {
