@@ -2,8 +2,6 @@ apiVersion: workflows.dev/v1alpha1
 kind: Workflow
 metadata:
   name: hello
-  labels:
-    workflows.dev/head-commit: $(event {.head_commit.id})
   annotations:
     workflows.dev/author: $(event {.sender.login})
 spec:

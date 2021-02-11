@@ -8,17 +8,25 @@ import (
 )
 
 var (
+
+	// Regex to match expressions containing variables such as
+	// $(workflow.name) or $(event {.pusher.name}).
 	expressionPattern = regexp.MustCompile(`\$\(((event\s*\{[^\}]+\})|(workflow\.[^\)]+))\)`)
 
+	// Regex that matches event expressions by allowing us to capture JSON
+	// path expressions enclosed between curly braces.
 	eventPattern = regexp.MustCompile(`event\s*(\{[^\}]+\})`)
 )
 
+// Replacements represents a substitution context for variables declared in
+// expressions.
 type Replacements struct {
 	specialVariables map[string]string
 	event            *github.Event
 }
 
-// MakeReplacements ...
+// MakeReplacements returns a new Replacements object containing information
+// about the workflow as well as the supplied Github event.
 func MakeReplacements(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Replacements {
 	replacements := &Replacements{
 		specialVariables: map[string]string{
@@ -33,7 +41,8 @@ func MakeReplacements(workflow *workflowsv1alpha1.Workflow, event *github.Event)
 	return replacements
 }
 
-// Expand ...
+// Expand attempts to substitute all variables declared in the supplied text by
+// evaluating them against the provided replacement context.
 func Expand(text string, replacements *Replacements) string {
 	return expressionPattern.ReplaceAllStringFunc(text, func(match string) string {
 		submatches := expressionPattern.FindStringSubmatch(match)
@@ -51,7 +60,6 @@ func Expand(text string, replacements *Replacements) string {
 	})
 }
 
-// applyReplacement ...
 func applyReplacement(key string, replacements *Replacements) (string, bool) {
 	if matches := eventPattern.FindStringSubmatch(key); matches != nil {
 		jsonPathExpr := matches[1]

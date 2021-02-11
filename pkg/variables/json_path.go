@@ -11,8 +11,11 @@ import (
 )
 
 const (
+
+	// Empty string to be returned when errors are raised.
 	nothing = ""
 
+	// Represents the null value returned when one queries a missing key.
 	null = "null"
 )
 
@@ -42,10 +45,12 @@ func query(event *github.Event, expression string) (string, error) {
 
 func printElement(runtimeValue reflect.Value) (string, error) {
 	if runtimeValue.Kind() == reflect.Ptr {
+		// Dereference the pointer.
 		runtimeValue = runtimeValue.Elem()
 	}
 
 	if runtimeValue.Kind() == reflect.Invalid {
+		// Return a string representing a null value rather than raising an error.
 		return null, nil
 	}
 

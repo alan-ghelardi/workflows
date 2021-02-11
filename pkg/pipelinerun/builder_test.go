@@ -11,6 +11,7 @@ import (
 
 	pipelinev1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 
+	"github.com/nubank/workflows/pkg/apis/config"
 	"github.com/nubank/workflows/pkg/github"
 	"github.com/nubank/workflows/pkg/testutils"
 	corev1 "k8s.io/api/core/v1"
@@ -234,7 +235,7 @@ func TestTaskRunSpecs(t *testing.T) {
 }
 
 func TestVariableExpansion(t *testing.T) {
-	workflow, err := testutils.ReadWorkflow("variables.yaml")
+	workflow, err := testutils.ReadWorkflow("variable-substitution.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,17 +246,6 @@ func TestVariableExpansion(t *testing.T) {
 	}
 
 	pipelineRun := NewBuilder(workflow, event).Build()
-
-	wantLabels := map[string]string{
-		"workflows.dev/workflow":    "hello",
-		"workflows.dev/head-commit": "833568e",
-	}
-
-	gotLabels := pipelineRun.Labels
-
-	if diff := cmp.Diff(wantLabels, gotLabels); diff != "" {
-		t.Errorf("Mismatch (-want +got):\n%s", diff)
-	}
 
 	wantAnnotations := map[string]string{
 		"workflows.dev/author": "john-doe",
@@ -279,4 +269,54 @@ echo "The PipelineRun $(context.pipelineRun.name) has been created"
 	if diff := cmp.Diff(wantScript, gotScript); diff != "" {
 		t.Errorf("Mismatch (-want +got): %s\n", diff)
 	}
+}
+
+func TestLabelsAndAnnotations(t *testing.T) {
+	workflow, err := testutils.ReadWorkflow("labels-and-annotations.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := testutils.ReadEvent("event.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defaults := &config.Defaults{
+		Labels: map[string]string{
+			"workflows.dev/head-commit":   "$(workflow.head-commit)",
+			"workflows.dev/example-label": "def",
+		},
+		Annotations: map[string]string{
+			"workflows.dev/example-annotation": "ghi",
+			"workflows.dev/other-annotation":   "xyz",
+		},
+	}
+
+	pipelineRun := NewBuilder(workflow, event).WithDefaults(defaults).Build()
+
+	wantLabels := map[string]string{
+		"workflows.dev/workflow":      "hello",
+		"workflows.dev/example-label": "abc",
+		"workflows.dev/head-commit":   "833568e",
+	}
+
+	gotLabels := pipelineRun.Labels
+
+	if diff := cmp.Diff(wantLabels, gotLabels); diff != "" {
+		t.Errorf("Mismatch in labels (-want +got):\n%s", diff)
+	}
+
+	wantAnnotations := map[string]string{
+		"workflows.dev/author":             "john-doe",
+		"workflows.dev/example-annotation": "def",
+		"workflows.dev/other-annotation":   "xyz",
+	}
+
+	gotAnnotations := pipelineRun.Annotations
+
+	if diff := cmp.Diff(wantAnnotations, gotAnnotations); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
+	}
+
 }

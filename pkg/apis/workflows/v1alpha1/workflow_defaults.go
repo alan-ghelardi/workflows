@@ -25,26 +25,6 @@ import (
 
 // SetDefaults implements apis.Defaultable
 func (w *Workflow) SetDefaults(ctx context.Context) {
-	defaults := config.Get(ctx).Defaults
-
-	for key, value := range defaults.Labels {
-		if _, ok := w.Labels[key]; !ok {
-			if w.Labels == nil {
-				w.Labels = make(map[string]string)
-			}
-			w.Labels[key] = value
-		}
-	}
-
-	for key, value := range defaults.Annotations {
-		if _, ok := w.Annotations[key]; !ok {
-			if w.Annotations == nil {
-				w.Annotations = make(map[string]string)
-			}
-			w.Annotations[key] = value
-		}
-	}
-
 	w.Spec.SetDefaults(apis.WithinSpec(ctx))
 }
 

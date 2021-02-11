@@ -3,6 +3,7 @@ package pipelinerun
 import (
 	"fmt"
 
+	"github.com/nubank/workflows/pkg/apis/config"
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	"github.com/nubank/workflows/pkg/github"
 	"github.com/nubank/workflows/pkg/variables"
@@ -14,6 +15,7 @@ import (
 // Builder builds Tekton PipelineRun objects.
 type Builder struct {
 	builtInActions []BuiltInAction
+	defaults       *config.Defaults
 	event          *github.Event
 	replacements   *variables.Replacements
 	workflow       *workflowsv1alpha1.Workflow
@@ -24,10 +26,17 @@ type Builder struct {
 func NewBuilder(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Builder {
 	return &Builder{
 		builtInActions: make([]BuiltInAction, 0),
+		defaults:       &config.Defaults{},
 		event:          event,
 		replacements:   variables.MakeReplacements(workflow, event),
 		workflow:       workflow,
 	}
+}
+
+// WithDefaults returns the same Builder with the provided default configuration.
+func (b *Builder) WithDefaults(defaults *config.Defaults) *Builder {
+	b.defaults = defaults
+	return b
 }
 
 // Build returns a new PipelineRun object.
@@ -48,6 +57,7 @@ func (b *Builder) Build() *pipelinev1beta1.PipelineRun {
 	}
 
 	b.copyLabelsAndAnnotations(pipelineRun)
+	b.addDefaultLabelsAndAnnotations(pipelineRun)
 
 	// Let built-in actions to modify the PipelineRun resource.
 	for _, action := range b.builtInActions {
@@ -225,13 +235,32 @@ func (b *Builder) buildTaskRunSpecs() []pipelinev1beta1.PipelineTaskRunSpec {
 
 // copyLabelsAndAnnotations copies all labels and annotations in the workflow to
 // the supplied pipelineRun.
-// All variables declared in labels and/or in annotations are expanded.
+// All variables declared in annotations will be substituted by values taken
+// from the replacement context.
 func (b *Builder) copyLabelsAndAnnotations(pipelineRun *pipelinev1beta1.PipelineRun) {
 	for key, value := range b.workflow.Labels {
-		pipelineRun.Labels[key] = variables.Expand(value, b.replacements)
+		pipelineRun.Labels[key] = value
 	}
 
 	for key, value := range b.workflow.Annotations {
 		pipelineRun.Annotations[key] = variables.Expand(value, b.replacements)
+	}
+}
+
+// addDefaultLabelsAndAnnotations adds labels and annotations declared in the
+// default configuration to the PipelineRun.
+// All variables declared in labels and/or annotations will be substituted by
+// values taken from the replacement context.
+func (b *Builder) addDefaultLabelsAndAnnotations(pipelineRun *pipelinev1beta1.PipelineRun) {
+	for key, value := range b.defaults.Labels {
+		if _, ok := pipelineRun.Labels[key]; !ok {
+			pipelineRun.Labels[key] = variables.Expand(value, b.replacements)
+		}
+	}
+
+	for key, value := range b.defaults.Annotations {
+		if _, ok := pipelineRun.Annotations[key]; !ok {
+			pipelineRun.Annotations[key] = variables.Expand(value, b.replacements)
+		}
 	}
 }
