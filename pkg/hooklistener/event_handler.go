@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/nubank/workflows/pkg/apis/config"
 	"github.com/nubank/workflows/pkg/filter"
 	"github.com/nubank/workflows/pkg/github"
 	"go.uber.org/zap"
@@ -12,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/logging"
 
-	"github.com/nubank/workflows/pkg/apis/config"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	"github.com/nubank/workflows/pkg/pipelinerun"
 	"github.com/nubank/workflows/pkg/secret"
@@ -24,9 +24,6 @@ import (
 // EventHandler handles incoming events from Github Webhooks by coordinating the
 // execution of Tekton PipelineRuns.
 type EventHandler struct {
-
-	// configStore holds up to date configuration.
-	configStore *config.Store
 
 	// KubeClientSet allows us to talk to the k8s for core APIs.
 	KubeClientSet kubernetes.Interface
@@ -78,7 +75,8 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 		return Forbidden(message)
 	}
 
-	pipelineRun := pipelinerun.NewBuilder(workflow, event).Build()
+	defaults := config.Get(ctx).Defaults
+	pipelineRun := pipelinerun.NewBuilder(workflow, event).WithDefaults(defaults).Build()
 	createdPipelineRun, err := e.TektonClientSet.TektonV1beta1().PipelineRuns(workflow.GetNamespace()).Create(ctx, pipelineRun, metav1.CreateOptions{})
 
 	if err != nil {

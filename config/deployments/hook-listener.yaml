@@ -17,22 +17,6 @@ spec:
       containers:
       - name: hook-listener
         image: ko://github.com/nubank/workflows/cmd/hook-listener
-        resources:
-          requests:
-            cpu: 250m
-            memory: 512Mi
-          limits:
-            cpu: 250m
-            memory: 512Mi
-        ports:
-        - name: hook-listener
-          containerPort: 8080
-        livenessProbe:
-          httpGet:
-            path: /live
-            port: 8080
-          initialDelaySeconds: 60
-          periodSeconds: 60
         env:
         - name: GITHUB_APP_ID
           valueFrom:
@@ -62,3 +46,35 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
+
+        ports:
+          - name: http
+            containerPort: 8080
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 250m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - all
+        readinessProbe: &probe
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          httpGet:
+            port: http
+            path: /health
+        livenessProbe: *probe
+        volumeMounts:
+        - name: github-app-private-key
+          mountPath: /var/run/secrets/github
+      volumes:
+        - name: github-app-private-key
+          secret:
+            secretName: github-app-private-key

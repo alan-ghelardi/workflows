@@ -8,6 +8,7 @@ import (
 
 	"github.com/nubank/workflows/pkg/hooklistener"
 	"github.com/nubank/workflows/pkg/log"
+	"go.uber.org/zap"
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/signals"
 )
@@ -29,7 +30,7 @@ func main() {
 		logger.Info("Starting hook-listener")
 
 		if err := server.ListenAndServe(); err != nil {
-			logger.Error(err)
+			logger.Error("Error starting hook-listener", zap.Error(err))
 		}
 	}()
 
@@ -40,5 +41,5 @@ func main() {
 
 	server.Shutdown(deadline)
 
-	logger.Info("Shutting down the hook listener API")
+	logger.Info("Shutting down the hook-listener API")
 }

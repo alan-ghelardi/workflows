@@ -13,6 +13,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/nubank/workflows/pkg/apis/config"
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned/fake"
 	"github.com/nubank/workflows/pkg/github"
@@ -244,6 +245,9 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 	}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
+	ctx = config.WithConfig(ctx, &config.Config{
+		Defaults: &config.Defaults{},
+	})
 
 	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
 	event := &github.Event{Body: []byte(`{
@@ -282,7 +286,7 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 		}, nil
 	})
 
-	listener := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	handler := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -307,6 +311,9 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 	}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
+	ctx = config.WithConfig(ctx, &config.Config{
+		Defaults: &config.Defaults{},
+	})
 
 	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
 	event := &github.Event{
@@ -320,7 +327,7 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 		Repository:    "my-org/my-repo",
 	}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 201
 	wantMessage := "PipelineRun test-1-run-123 has been successfully created"
