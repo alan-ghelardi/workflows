@@ -25,14 +25,18 @@ import (
 // execution of Tekton PipelineRuns.
 type EventHandler struct {
 
-	// KubeClientSet allows us to talk to the k8s for core APIs.
-	KubeClientSet kubernetes.Interface
+	// configStore holds a collection of configurations required by the
+	// EventHandler.
+	configStore *config.Store
 
-	// TektonClientSet allows us to configure pipeline objects.
-	TektonClientSet tektonclientset.Interface
+	// kubeClientSet allows us to talk to the k8s for core APIs.
+	kubeClientSet kubernetes.Interface
 
-	// WorkflowsClientSet allows us to retrieve workflow objects from the Kubernetes cluster.
-	WorkflowsClientSet workflowsclientset.Interface
+	// tektonClientSet allows us to configure pipeline objects.
+	tektonClientSet tektonclientset.Interface
+
+	// workflowsClientSet allows us to retrieve workflow objects from the Kubernetes cluster.
+	workflowsClientSet workflowsclientset.Interface
 
 	// WorkflowRetriever allows us to retrieve workflows declared directly
 	// in Github repositories.
@@ -44,7 +48,7 @@ type EventHandler struct {
 func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types.NamespacedName, event *github.Event) *Response {
 	logger := logging.FromContext(ctx)
 
-	workflow, err := e.WorkflowsClientSet.WorkflowsV1alpha1().Workflows(namespacedName.Namespace).Get(ctx, namespacedName.Name, metav1.GetOptions{})
+	workflow, err := e.workflowsClientSet.WorkflowsV1alpha1().Workflows(namespacedName.Namespace).Get(ctx, namespacedName.Name, metav1.GetOptions{})
 	if err != nil {
 		logger.Error("Error reading workflow", zap.Error(err))
 		if apierrors.IsNotFound(err) {
@@ -54,7 +58,7 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 		}
 	}
 
-	webhookSecret, err := e.KubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Get(ctx, workflow.GetWebhookSecretName(), metav1.GetOptions{})
+	webhookSecret, err := e.kubeClientSet.CoreV1().Secrets(workflow.GetNamespace()).Get(ctx, workflow.GetWebhookSecretName(), metav1.GetOptions{})
 	if err != nil {
 		logger.Error("Error reading Webhook secret", zap.Error(err))
 		return InternalServerError("An internal error has occurred while verifying the request signature")
@@ -77,7 +81,7 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 
 	defaults := config.Get(ctx).Defaults
 	pipelineRun := pipelinerun.NewBuilder(workflow, event).WithDefaults(defaults).Build()
-	createdPipelineRun, err := e.TektonClientSet.TektonV1beta1().PipelineRuns(workflow.GetNamespace()).Create(ctx, pipelineRun, metav1.CreateOptions{})
+	createdPipelineRun, err := e.tektonClientSet.TektonV1beta1().PipelineRuns(workflow.GetNamespace()).Create(ctx, pipelineRun, metav1.CreateOptions{})
 
 	if err != nil {
 		logger.Error("Error creating PipelineRun object", zap.Error(err))
