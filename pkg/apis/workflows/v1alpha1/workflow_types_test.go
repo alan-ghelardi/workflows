@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestTriggerURL(t *testing.T) {
+func TestHooksURL(t *testing.T) {
 	tests := []struct {
 		name string
 		in   string
@@ -14,12 +14,12 @@ func TestTriggerURL(t *testing.T) {
 	}{{
 		name: "URL without a trailing slash",
 		in:   "https://hooks.example.com",
-		want: "https://hooks.example.com/api/v1alpha1/namespaces/dev/workflows/test/trigger",
+		want: "https://hooks.example.com/api/v1alpha1/namespaces/dev/workflows/test/hooks",
 	},
 		{
 			name: "URL with a trailing slash",
 			in:   "https://hooks.example.com/",
-			want: "https://hooks.example.com/api/v1alpha1/namespaces/dev/workflows/test/trigger",
+			want: "https://hooks.example.com/api/v1alpha1/namespaces/dev/workflows/test/hooks",
 		},
 	}
 
@@ -36,7 +36,7 @@ func TestTriggerURL(t *testing.T) {
 			},
 		}
 
-		got := workflow.GetTriggerURL()
+		got := workflow.GetHooksURL()
 
 		if test.want != got {
 			t.Errorf("Fail in %s.\nWant URL %s, but got %s", test.name, test.want, got)

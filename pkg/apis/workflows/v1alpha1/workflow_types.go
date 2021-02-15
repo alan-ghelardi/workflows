@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	triggerEndpointPath = "/api/%s/namespaces/%s/workflows/%s/trigger"
+	hooksEndpointPath = "/api/%s/namespaces/%s/workflows/%s/hooks"
 
 	webhookIDFormat = "workflows.dev/github.%s.%s.webhook-id"
 
@@ -128,15 +128,15 @@ func (w *Workflow) GetWebhookSecretName() string {
 	return fmt.Sprintf("%s-webhook-secret", w.GetName())
 }
 
-// GetTriggerURL returns the URL that Github Webhooks must use to triger this
+// GetHooksURL returns the URL that Github Webhooks must use to triger this
 // workflow.
-func (w *Workflow) GetTriggerURL() string {
+func (w *Workflow) GetHooksURL() string {
 	baseURL := w.Spec.Webhook.URL
 	if strings.HasSuffix(baseURL, "/") {
 		// Drop the trailing slash
 		baseURL = baseURL[:len(baseURL)-1]
 	}
-	return baseURL + fmt.Sprintf(triggerEndpointPath, workflowsVersion, w.GetNamespace(), w.GetName())
+	return baseURL + fmt.Sprintf(hooksEndpointPath, workflowsVersion, w.GetNamespace(), w.GetName())
 }
 
 // WorkflowSpec defines the desired state of Workflow objects.
