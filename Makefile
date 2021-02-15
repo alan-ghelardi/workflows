@@ -18,3 +18,6 @@ endif
 # Install resources in the configured Kubernetes cluster in ~/.kube/config
 install-dev: lint
 	eval $$(minikube -p minikube docker-env) && ko apply -LRf config
+
+install: lint
+	KO_DOCKER_REPO=193814090748.dkr.ecr.us-east-1.amazonaws.com/workflows ko apply -BRf config
