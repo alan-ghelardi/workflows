@@ -6,4 +6,18 @@ metadata:
   labels:
     workflows.workflows.dev/release: devel
 data:
-  webhook: https://hooks.example.com
+  webhook: https://workflows.cicd.nubank.world
+
+  labels: |
+    nu/pipeline: $(workflow.name)
+    nu/trigger-cause: commit
+
+  annotations: |
+    nu/author: $(event {.pusher.name})
+    nu/pushed-at: $(event {.repository.pushed_at})
+    tekton-watcher.github/repository-owner: $(workflows.repo.owner)
+    tekton-watcher.github/repository-name: $(workflows.repo.name)
+    tekton-watcher.github/commit-sha: $(event {.head_commit.id})
+    pipeline-events/github.repository-owner: $(workflow.repo.owner)
+    pipeline-events/github.repository-name: $(workflow.repo.name)
+    pipeline-events/github.head-sha: $(event {.head_commit.id})

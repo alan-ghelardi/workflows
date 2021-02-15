@@ -4,6 +4,7 @@ metadata:
   name: hook-listener
   namespace: workflows-system
 spec:
+  type: NodePort
   ports:
     - port: 8080
   selector:
