@@ -6,5 +6,5 @@ metadata:
   labels:
     workflows.workflows.dev/release: devel
 data:
-  app-id: "0"
-  installation-id: "99"
+  app-id: "99958"
+  installation-id: "14656263"

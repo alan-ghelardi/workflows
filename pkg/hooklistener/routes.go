@@ -48,7 +48,7 @@ func initRoutes(ctx context.Context, handler *EventHandler) *mux.Router {
 	api := router.PathPrefix("/api/v1alpha1").Subrouter()
 	api.Use(tracer)
 	api.Use(eventParser)
-	api.Methods("POST").Path("/namespaces/{namespace}/workflows/{name}/trigger").Handler(repositoryEventHandler(handler, configStore))
+	api.Methods("POST").Path("/namespaces/{namespace}/workflows/{name}/hooks").Handler(repositoryEventHandler(handler, configStore))
 
 	return router
 }
