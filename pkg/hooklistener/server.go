@@ -5,19 +5,25 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/nubank/workflows/pkg/apis/config"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	tektonclientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
+	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"knative.dev/pkg/configmap"
+	"knative.dev/pkg/configmap/informer"
+	"knative.dev/pkg/logging"
 )
 
 // New creates a HTTP server
 func New(ctx context.Context) *http.Server {
-	handler := newEventHandler(ctx)
-	routes := initRoutes(ctx, handler)
+	handler := newEventHandlerOrDie(ctx)
+	routes := initRoutes(handler)
 	return newServer(ctx, routes)
 }
 
@@ -37,21 +43,49 @@ func newServer(ctx context.Context, routes *mux.Router) *http.Server {
 	return server
 }
 
-// newEventHandler returns a new EventHandler initializing all required client sets.
+// newEventHandlerOrDie returns a new EventHandler initializing all required client sets.
 // It panics if a in-cluster config can't be obtained or if any client set fails
 // to be created.
-func newEventHandler(ctx context.Context) *EventHandler {
+func newEventHandlerOrDie(ctx context.Context) *EventHandler {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(fmt.Errorf("Error creating in-cluster config: %w", err))
 	}
 
 	kubeClient := kubernetes.NewForConfigOrDie(config)
+	configStore := newConfigStore(ctx, kubeClient)
 	tektonClient := tektonclientset.NewForConfigOrDie(config)
 	workflowsClient := workflowsclientset.NewForConfigOrDie(config)
 	return &EventHandler{
-		KubeClientSet:      kubeClient,
-		TektonClientSet:    tektonClient,
-		WorkflowsClientSet: workflowsClient,
+		configStore:        configStore,
+		kubeClientSet:      kubeClient,
+		tektonClientSet:    tektonClient,
+		workflowsClientSet: workflowsClient,
 	}
+}
+
+func newConfigStore(ctx context.Context, kubeClient kubernetes.Interface) *config.Store {
+	logger := logging.FromContext(ctx).Named("configs")
+	watcher := newConfigMapWatcher(kubeClient)
+	if err := watcher.Start(ctx.Done()); err != nil {
+		logger.Fatal("Error starting config map watcher", zap.Error(err))
+	}
+	configStore := config.NewStore(logger)
+	configStore.WatchConfigs(watcher)
+	return configStore
+}
+
+func newConfigMapWatcher(kubeClient kubernetes.Interface) configmap.Watcher {
+	const namespaceKey = "SYSTEM_NAMESPACE"
+	namespace, ok := os.LookupEnv(namespaceKey)
+	if !ok {
+		panic(fmt.Errorf("Error creating hook-listener: missing environment variable %s", namespaceKey))
+	}
+
+	filter, err := informer.FilterConfigByLabelExists("workflows.workflows.dev/release")
+	if err != nil {
+		panic(fmt.Errorf("Error creating hook-listener: %w", err))
+	}
+
+	return informer.NewInformedWatcher(kubeClient, namespace, *filter)
 }

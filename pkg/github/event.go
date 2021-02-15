@@ -125,6 +125,11 @@ func ParseWebhookEvent(request *http.Request) (*Event, error) {
 func getRepoFullName(event interface{}) string {
 	value := reflect.ValueOf(event).Elem()
 	field := value.FieldByName("Repo")
+
+	if field.IsZero() {
+		return ""
+	}
+
 	repo := field.Interface()
 
 	if repo == nil {
@@ -143,7 +148,7 @@ func getRepoFullName(event interface{}) string {
 	}
 }
 
-// getBranch returns the name of the getBranch taken from the Git reference.
+// getBranch returns the name of the branch taken from the Git reference.
 func getBranch(reference string) string {
 	matches := refsPattern.FindStringSubmatch(reference)
 
