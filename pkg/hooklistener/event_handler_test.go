@@ -26,7 +26,7 @@ import (
 )
 
 func TestReturn404WhenTheWorkflowDoesntExist(t *testing.T) {
-	listener := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "anything",
+	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "anything",
 		Namespace: "dev",
 	},
 	}),
@@ -64,7 +64,7 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 		return true, &workflowsv1alpha1.Workflow{}, errors.New("Error creating workflow")
 	})
 
-	listener := &EventHandler{WorkflowsClientSet: client}
+	listener := &EventHandler{workflowsClientSet: client}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
@@ -89,11 +89,11 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 }
 
 func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
-	listener := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
+	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
 		Namespace: "dev",
 	},
 	}),
-		KubeClientSet: kubeclientset.NewSimpleClientset(),
+		kubeClientSet: kubeclientset.NewSimpleClientset(),
 	}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
@@ -119,11 +119,11 @@ func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
 }
 
 func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
-	listener := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
+	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
 		Namespace: "dev",
 	},
 	}),
-		KubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
+		kubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
@@ -160,7 +160,7 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 }
 
 func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
-	listener := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -174,7 +174,7 @@ func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
 			Branches: []string{"main"},
 		},
 	}),
-		KubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
+		kubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
@@ -220,7 +220,7 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 		return true, &pipelinev1beta1.PipelineRun{}, errors.New("Error creating pipelinerun")
 	})
 
-	listener := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -234,14 +234,14 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 			Branches: []string{"main"},
 		},
 	}),
-		KubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
+		kubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
 				"secret-token": []byte("secret"),
 			},
 		}),
-		TektonClientSet: tektonClient,
+		tektonClientSet: tektonClient,
 	}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
@@ -286,7 +286,7 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 		}, nil
 	})
 
-	handler := &EventHandler{WorkflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -300,14 +300,14 @@ func TestReturns201WhenThePipelineRunIsCreated(t *testing.T) {
 			Branches: []string{"main"},
 		},
 	}),
-		KubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
+		kubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
 			Namespace: "dev",
 		},
 			Data: map[string][]byte{
 				"secret-token": []byte("secret"),
 			},
 		}),
-		TektonClientSet: tektonClient,
+		tektonClientSet: tektonClient,
 	}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
