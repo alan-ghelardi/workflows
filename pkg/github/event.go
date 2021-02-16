@@ -126,7 +126,7 @@ func getRepoFullName(event interface{}) string {
 	value := reflect.ValueOf(event).Elem()
 	field := value.FieldByName("Repo")
 
-	if !field.CanInterface() {
+	if field.IsZero() {
 		return ""
 	}
 
