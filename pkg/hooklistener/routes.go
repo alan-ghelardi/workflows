@@ -13,8 +13,7 @@ import (
 // EventHandler object.
 func repositoryEventHandler(handler *EventHandler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		ctx := request.Context()
-		ctx = handler.configStore.ToContext(ctx)
+		ctx := handler.configStore.ToContext(request.Context())
 		vars := mux.Vars(request)
 		namespacedName := types.NamespacedName{
 			Namespace: vars["namespace"],

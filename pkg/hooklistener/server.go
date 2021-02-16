@@ -67,11 +67,11 @@ func newEventHandlerOrDie(ctx context.Context) *EventHandler {
 func newConfigStore(ctx context.Context, kubeClient kubernetes.Interface) *config.Store {
 	logger := logging.FromContext(ctx).Named("configs")
 	watcher := newConfigMapWatcher(kubeClient)
+	configStore := config.NewStore(logger)
+	configStore.WatchConfigs(watcher)
 	if err := watcher.Start(ctx.Done()); err != nil {
 		logger.Fatal("Error starting config map watcher", zap.Error(err))
 	}
-	configStore := config.NewStore(logger)
-	configStore.WatchConfigs(watcher)
 	return configStore
 }
 
