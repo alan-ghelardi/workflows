@@ -26,7 +26,7 @@ import (
 )
 
 func TestReturn404WhenTheWorkflowDoesntExist(t *testing.T) {
-	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "anything",
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "anything",
 		Namespace: "dev",
 	},
 	}),
@@ -37,7 +37,7 @@ func TestReturn404WhenTheWorkflowDoesntExist(t *testing.T) {
 	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
 	event := &github.Event{}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 404
 	wantMessage := "Workflow dev/test-1 not found"
@@ -64,14 +64,14 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 		return true, &workflowsv1alpha1.Workflow{}, errors.New("Error creating workflow")
 	})
 
-	listener := &EventHandler{workflowsClientSet: client}
+	handler := &EventHandler{workflowsClientSet: client}
 
 	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
 
 	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
 	event := &github.Event{}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 500
 	wantMessage := "An internal error has occurred while reading workflow dev/test-1"
@@ -89,7 +89,7 @@ func TestReturns500WhenTheWorkflowCannotBeLoaded(t *testing.T) {
 }
 
 func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
-	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
 		Namespace: "dev",
 	},
 	}),
@@ -101,7 +101,7 @@ func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
 	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
 	event := &github.Event{}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 500
 	wantMessage := "An internal error has occurred while verifying the request signature"
@@ -119,7 +119,7 @@ func TestReturns500WhenTheWebhookSecretCannotBeLoaded(t *testing.T) {
 }
 
 func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
-	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "test-1",
 		Namespace: "dev",
 	},
 	}),
@@ -142,7 +142,7 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 		HMACSignature: []byte("sha256=d8a72707bd05f566becba60815c77f1e2adddddfceed668ca4844489d12ded07"),
 	}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 403
 	wantMessage := "Access denied: HMAC signatures don't match. The request signature we calculated does not match the provided signature."
@@ -159,8 +159,52 @@ func TestReturns403WhenSignaturesDoNotMatch(t *testing.T) {
 	}
 }
 
+func TestReturns200WhenGithubSendAPingEvent(t *testing.T) {
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-1",
+			Namespace: "dev",
+		},
+		Spec: workflowsv1alpha1.WorkflowSpec{
+			Repository: &workflowsv1alpha1.Repository{
+				Owner: "my-org",
+				Name:  "my-repo",
+			},
+		},
+	}),
+		kubeClientSet: kubeclientset.NewSimpleClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "test-1-webhook-secret",
+			Namespace: "dev",
+		},
+			Data: map[string][]byte{
+				"secret-token": []byte("secret"),
+			},
+		}),
+	}
+
+	ctx := logging.WithLogger(context.Background(), zap.NewNop().Sugar())
+
+	namespacedName := types.NamespacedName{Namespace: "dev", Name: "test-1"}
+	event := &github.Event{
+		Body: []byte(`{
+    "ref": "refs/heads/dev"
+}`),
+		// This digest was calculated with the key secret.
+		HMACSignature: []byte("sha256=4ae9df17f8cc696722c87f771f0c60fa7b03d44488ae3e0f712f570c4e7a3888"),
+		Name:          "ping",
+	}
+
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
+
+	wantStatus := 200
+	gotStatus := response.Status
+
+	if wantStatus != gotStatus {
+		t.Errorf("Want status %d, but got %d", wantStatus, gotStatus)
+	}
+}
+
 func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
-	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -197,7 +241,7 @@ func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
 		Repository:    "my-org/my-repo",
 	}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 403
 	wantMessage := "Workflow was rejected because Github event doesn't satisfy filter criteria: branch john-patch1 doesn't match filters [main]"
@@ -220,7 +264,7 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 		return true, &pipelinev1beta1.PipelineRun{}, errors.New("Error creating pipelinerun")
 	})
 
-	listener := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
+	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
 			Namespace: "dev",
@@ -260,7 +304,7 @@ func TestReturns500WhenThePipelineRunCannotBeCreated(t *testing.T) {
 		Repository:    "my-org/my-repo",
 	}
 
-	response := listener.triggerWorkflow(ctx, namespacedName, event)
+	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 500
 	wantMessage := "An internal error has occurred while creating the PipelineRun for workflow dev/test-1"

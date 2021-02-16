@@ -125,8 +125,7 @@ func ParseWebhookEvent(request *http.Request) (*Event, error) {
 func getRepoFullName(event interface{}) string {
 	value := reflect.ValueOf(event).Elem()
 	field := value.FieldByName("Repo")
-
-	if field.IsZero() {
+	if !field.IsValid() {
 		return ""
 	}
 
