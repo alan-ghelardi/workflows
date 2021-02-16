@@ -74,6 +74,10 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 		return Forbidden(message)
 	}
 
+	if event.Name == "ping" {
+		return OK("Webhook is all set!")
+	}
+
 	if workflowAccepted, message := filter.VerifyCriteria(workflow, event); !workflowAccepted {
 		logger.Info(message)
 		return Forbidden(message)
