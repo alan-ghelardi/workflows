@@ -15,8 +15,8 @@ data:
   annotations: |
     nu/author: $(event {.pusher.name})
     nu/pushed-at: $(event {.repository.pushed_at})
-    tekton-watcher.github/repository-owner: $(workflows.repo.owner)
-    tekton-watcher.github/repository-name: $(workflows.repo.name)
+    tekton-watcher.github/repository-owner: $(workflow.repo.owner)
+    tekton-watcher.github/repository-name: $(workflow.repo.name)
     tekton-watcher.github/commit-sha: $(event {.head_commit.id})
     pipeline-events/github.repository-owner: $(workflow.repo.owner)
     pipeline-events/github.repository-name: $(workflow.repo.name)
