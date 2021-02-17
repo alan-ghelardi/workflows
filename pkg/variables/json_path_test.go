@@ -14,26 +14,27 @@ func TestQuery(t *testing.T) {
 	}
 
 	tests := []struct {
-		expr   string
-		result string
+		in   string
+		want string
 	}{
-		{"text", "text"},
-		{"{.head_commit.id}", "833568e"},
-		{"{.head_commit}", `{"id":"833568e"}`},
-		{"{.commits..modified}", `[["README.md"],["CHANGELOG.md"]]`},
-		{"{.forced}", "false"},
-		{"{.base_ref}", null},
-		{"{.missing_key}", "[]"},
-		{"{.commits..missing_key}", "[]"},
+		{in: "text", want: "text"},
+		{in: "{.head_commit.id}", want: "833568e"},
+		{in: "{.head_commit}", want: `{"id":"833568e"}`},
+		{in: "{.commits..modified}", want: `[["README.md"],["CHANGELOG.md"]]`},
+		{in: "{.forced}", want: "false"},
+		{in: "{.repository.pushed_at}", want: "1613517959"},
+		{in: "{.base_ref}", want: null},
+		{in: "{.missing_key}", want: "[]"},
+		{in: "{.commits..missing_key}", want: "[]"},
 	}
 
 	for _, test := range tests {
-		gotResult, err := query(event, test.expr)
+		gotResult, err := query(event, test.in)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(test.result, gotResult); diff != "" {
+		if diff := cmp.Diff(test.want, gotResult); diff != "" {
 			t.Errorf("Mismatch (-want +got):\n%s", diff)
 		}
 	}
