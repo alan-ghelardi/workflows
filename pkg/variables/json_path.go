@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
+	gogithub "github.com/google/go-github/v33/github"
 	"github.com/nubank/workflows/pkg/github"
 	"k8s.io/client-go/util/jsonpath"
 )
@@ -54,12 +55,20 @@ func printElement(runtimeValue reflect.Value) (string, error) {
 		return null, nil
 	}
 
-	value := runtimeValue.Interface()
+	switch value := runtimeValue.Interface().(type) {
 
-	if runtimeValue.Kind() == reflect.String {
+	case string:
+		// Return the raw string without quotes.
 		return fmt.Sprint(value), nil
+
+	case gogithub.Timestamp:
+		// Return the raw timestamp as int64 rather than a formatted date and time.
+		return fmt.Sprint(value.Time.Unix()), nil
+
+	default:
+		// Other types are returned in the JSON format.
+		return printJSON(value)
 	}
-	return printJSON(value)
 }
 
 func printList(results []reflect.Value) (string, error) {

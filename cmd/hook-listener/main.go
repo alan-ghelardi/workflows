@@ -30,7 +30,7 @@ func main() {
 		logger.Info("Starting hook-listener")
 
 		if err := server.ListenAndServe(); err != nil {
-			logger.Error("Error starting hook-listener", zap.Error(err))
+			logger.Fatal("Error starting hook-listener", zap.Error(err))
 		}
 	}()
 
