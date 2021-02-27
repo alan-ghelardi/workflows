@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nubank/workflows/pkg/apis/config"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
+	"github.com/nubank/workflows/pkg/github"
 	tektonclientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	"go.uber.org/zap"
 	"k8s.io/client-go/kubernetes"
@@ -20,7 +21,7 @@ import (
 	"knative.dev/pkg/logging"
 )
 
-// New creates a HTTP server
+// New creates a HTTP server to handle events delivered by Github Webhooks.
 func New(ctx context.Context) *http.Server {
 	handler := newEventHandlerOrDie(ctx)
 	routes := initRoutes(handler)
@@ -43,28 +44,33 @@ func newServer(ctx context.Context, routes *mux.Router) *http.Server {
 	return server
 }
 
-// newEventHandlerOrDie returns a new EventHandler initializing all required client sets.
-// It panics if a in-cluster config can't be obtained or if any client set fails
-// to be created.
+// newEventHandlerOrDie returns a new EventHandler by initializing all required
+// dependencies (Kubernetes client sets, config map watchers and Github
+// clients).
+// It panics if any of those dependencies fails to be created.
 func newEventHandlerOrDie(ctx context.Context) *EventHandler {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		panic(fmt.Errorf("Error creating in-cluster config: %w", err))
+		panic(fmt.Errorf("Error creating Kubernetes config: %w", err))
 	}
 
 	kubeClient := kubernetes.NewForConfigOrDie(config)
-	configStore := newConfigStore(ctx, kubeClient)
+	configStore := newConfigStoreOrDie(ctx, kubeClient)
 	tektonClient := tektonclientset.NewForConfigOrDie(config)
 	workflowsClient := workflowsclientset.NewForConfigOrDie(config)
+	workflowReader := github.NewWorkflowReader(github.NewClientOrDie())
 	return &EventHandler{
 		configStore:        configStore,
 		kubeClientSet:      kubeClient,
 		tektonClientSet:    tektonClient,
 		workflowsClientSet: workflowsClient,
+		workflowReader:     workflowReader,
 	}
 }
 
-func newConfigStore(ctx context.Context, kubeClient kubernetes.Interface) *config.Store {
+// newConfigStoreOrDie creates a Store filled with the initial state of
+// configurations.
+func newConfigStoreOrDie(ctx context.Context, kubeClient kubernetes.Interface) *config.Store {
 	logger := logging.FromContext(ctx).Named("configs")
 	watcher := newConfigMapWatcher(kubeClient)
 	configStore := config.NewStore(logger)

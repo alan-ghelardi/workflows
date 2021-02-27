@@ -9,21 +9,21 @@ import (
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 )
 
-// WorkflowRetriever defines the interface for retrieving workflows stored in
+// WorkflowReader defines the interface for retrieving workflows stored in
 // Github repositories alongside the code that they build, test, release, etc.
-type WorkflowRetriever interface {
+type WorkflowReader interface {
 	GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error)
 }
 
-// DefaultWorkflowRetriever is the default implementation of WorkflowRetriever
+// DefaultWorkflowReader is the default implementation of WorkflowReader
 // interface.
-type DefaultWorkflowRetriever struct {
-	service *github.Client
+type DefaultWorkflowReader struct {
+	client *github.Client
 }
 
-// GetWorkflowContent implements WorkflowRetriever.GetWorkflowContent.
-func (d *DefaultWorkflowRetriever) GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error) {
-	content, _, response, err := d.service.Repositories.GetContents(ctx,
+// GetWorkflowContent implements WorkflowReader.GetWorkflowContent.
+func (d *DefaultWorkflowReader) GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error) {
+	content, _, response, err := d.client.Repositories.GetContents(ctx,
 		workflow.Spec.Repository.Owner,
 		workflow.Spec.Repository.Name,
 		filePath,
@@ -48,4 +48,9 @@ func (d *DefaultWorkflowRetriever) GetWorkflowContent(ctx context.Context, workf
 	}
 
 	return &w, nil
+}
+
+// NewWorkflowReader creates a new WorkflowReader object.
+func NewWorkflowReader(client *github.Client) WorkflowReader {
+	return &DefaultWorkflowReader{client: client}
 }

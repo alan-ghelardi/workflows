@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/logging"
 
+	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	"github.com/nubank/workflows/pkg/pipelinerun"
 	"github.com/nubank/workflows/pkg/secret"
@@ -38,9 +39,9 @@ type EventHandler struct {
 	// workflowsClientSet allows us to retrieve workflow objects from the Kubernetes cluster.
 	workflowsClientSet workflowsclientset.Interface
 
-	// WorkflowRetriever allows us to retrieve workflows declared directly
-	// in Github repositories.
-	WorkflowRetriever *github.WorkflowRetriever
+	// workflowReader allows us to read workflows declared directly in
+	// Github repositories.
+	workflowReader github.WorkflowReader
 }
 
 // triggerWorkflow takes the event delivered by a Github Webhook and creates a
@@ -75,10 +76,20 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 	}
 
 	if event.Name == "ping" {
+		// Respond to the ping event sent by Github to check the Webhook validity.
 		return OK("Webhook is all set!")
 	}
 
-	if workflowAccepted, message := filter.VerifyCriteria(workflow, event); !workflowAccepted {
+	if w, err := e.getWorkflowFromRepository(ctx, workflow, event); err != nil {
+		logger.Errorw("Error getting workflow from repository", zap.Error(err))
+		return InternalServerError("An internal error has occurred while trying to read the workflow's configuration from the repository")
+	} else if w != nil {
+		workflow = w
+	} else {
+		logger.Info("Defaulting to the workflow's configuration read from the cluster")
+	}
+
+	if ok, message := filter.VerifyCriteria(workflow, event); !ok {
 		logger.Info(message)
 		return Forbidden(message)
 	}
@@ -94,4 +105,32 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 
 	logger.Infow("PipelineRun has been successfully created", "tekton.dev/pipeline-run", createdPipelineRun.GetName())
 	return Created(fmt.Sprintf("PipelineRun %s has been successfully created", createdPipelineRun.GetName()))
+}
+
+func (e *EventHandler) getWorkflowFromRepository(ctx context.Context, workflow *workflowsv1alpha1.Workflow, event *github.Event) (*workflowsv1alpha1.Workflow, error) {
+	logger := logging.FromContext(ctx)
+
+	if event.HeadCommitSHA == "" {
+		logger.Info("Ignoring any workflow config possibly declared in the repository because the head commit is unknown")
+		return nil, nil
+	}
+
+	defaults := config.Get(ctx).Defaults
+	filePath := fmt.Sprintf("%s/%s.yaml", defaults.WorkflowsDir, workflow.GetName())
+	w, err := e.workflowReader.GetWorkflowContent(ctx, workflow, filePath, event.HeadCommitSHA)
+	if err != nil {
+		if github.IsNotFound(err) {
+			logger.Infof("Couldn't find the workflow's configuration at %s", filePath)
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	logger.Infof("Successfully read workflow's configuration from %s", filePath)
+
+	// Apply the same default values as those set by the admission controller.
+	w.SetDefaults(ctx)
+
+	return w, nil
 }
