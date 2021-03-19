@@ -1,11 +1,12 @@
 module github.com/nubank/workflows
 
-go 1.14
+go 1.16
 
 require (
 	github.com/bradleyfalzon/ghinstallation v1.1.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/gobwas/glob v0.2.3
+	github.com/golang/mock v1.4.4
 	github.com/google/go-cmp v0.5.4
 	github.com/google/go-github/v33 v33.0.0
 	github.com/google/licenseclassifier v0.0.0-20200708223521-3d09a0ea2f39
