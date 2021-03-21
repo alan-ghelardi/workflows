@@ -9,6 +9,7 @@ import (
 	"github.com/nubank/workflows/pkg/github"
 )
 
+// Human readable messages about filtering results.
 const (
 	workflowAccepted = "Workflow accepted"
 
@@ -103,12 +104,13 @@ var filters = []Filter{events,
 	paths,
 }
 
-// CanTrigger verifies all filter criteria declared in the supplied
-// workflow, by validating them against the incoming Github event.
+// CanTrigger verifies all filtering rules declared in the workflow by comparing
+// them against the supplied Github event.
+// Returns true if the workflow is eligible to be triggered or false otherwise.
 func CanTrigger(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	for _, filter := range filters {
 		if ok, message := filter(workflow, event); !ok {
-			return false, fmt.Sprintf("Workflow was rejected because Github event doesn't satisfy filter criteria: %s", message)
+			return false, fmt.Sprintf("Workflow was rejected because Github event doesn't satisfy rule: %s", message)
 		}
 	}
 	return true, workflowAccepted

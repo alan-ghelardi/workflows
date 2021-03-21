@@ -247,7 +247,7 @@ func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
 	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
 	wantStatus := 403
-	wantMessage := "Workflow was rejected because Github event doesn't satisfy filter criteria: branch john-patch1 doesn't match filters [main]"
+	wantMessage := "Workflow was rejected because Github event doesn't satisfy rule: branch john-patch1 doesn't match filters [main]"
 
 	gotStatus := response.Status
 	gotMessage := response.Payload.Message
