@@ -1,4 +1,4 @@
-package filter
+package filters
 
 import (
 	"testing"
@@ -171,7 +171,7 @@ func TestWithEmptyPathsSlice(t *testing.T) {
 	}
 }
 
-func TestVerifyFilterCriteria(t *testing.T) {
+func TestCanTrigger(t *testing.T) {
 	workflow := &workflowsv1alpha1.Workflow{
 		Spec: workflowsv1alpha1.WorkflowSpec{
 			Repository: &workflowsv1alpha1.Repository{Owner: "my-org",
@@ -204,7 +204,7 @@ func TestVerifyFilterCriteria(t *testing.T) {
 			Branch:     test.branch,
 			Changes:    test.files,
 		}
-		gotResult, gotMessage := VerifyCriteria(workflow, event)
+		gotResult, gotMessage := CanTrigger(workflow, event)
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}

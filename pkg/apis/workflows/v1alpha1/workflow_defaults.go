@@ -40,10 +40,27 @@ func (ws *WorkflowSpec) SetDefaults(ctx context.Context) {
 		ws.Webhook = &Webhook{URL: defaults.Webhook}
 	}
 
+	if ws.Defaults == nil {
+		// Initialize workflow defaults.
+		ws.Defaults = &Defaults{}
+	}
+
 	for _, task := range ws.Tasks {
+		if ws.Defaults.PodTemplate != nil && task.PodTemplate == nil {
+			task.PodTemplate = ws.Defaults.PodTemplate
+		}
+
+		if ws.Defaults.ServiceAccount != "" && task.ServiceAccount == "" {
+			task.ServiceAccount = ws.Defaults.ServiceAccount
+		}
+
 		for i, step := range task.Steps {
 			if step.Image == "" {
-				task.Steps[i].Image = defaults.DefaultImage
+				if ws.Defaults.Image != "" {
+					task.Steps[i].Image = ws.Defaults.Image
+				} else {
+					task.Steps[i].Image = defaults.DefaultImage
+				}
 			}
 		}
 	}

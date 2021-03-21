@@ -1,5 +1,5 @@
-// package filter implements filtering logic to determine whether workflows must run based on their filtering rules.
-package filter
+// package filters implements filtering logic to determine whether workflows must run based on their filtering rules.
+package filters
 
 import (
 	"fmt"
@@ -103,9 +103,9 @@ var filters = []Filter{events,
 	paths,
 }
 
-// VerifyCriteria verifies all filter criteria declared in the supplied
+// CanTrigger verifies all filter criteria declared in the supplied
 // workflow, by validating them against the incoming Github event.
-func VerifyCriteria(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
+func CanTrigger(workflow *workflowsv1alpha1.Workflow, event *github.Event) (bool, string) {
 	for _, filter := range filters {
 		if ok, message := filter(workflow, event); !ok {
 			return false, fmt.Sprintf("Workflow was rejected because Github event doesn't satisfy filter criteria: %s", message)

@@ -169,6 +169,10 @@ type WorkflowSpec struct {
 	// +optional
 	Paths []string `json:"paths,omitempty"`
 
+	// Default settings that will apply to all tasks in the workflow.
+	// +optional
+	Defaults *Defaults `json:"defaults,omitempty"`
+
 	// The tasks that make up the workflow.
 	Tasks map[string]*Task `json:"tasks"`
 }
@@ -237,6 +241,22 @@ type DeployKey struct {
 	ReadOnly bool `json:"readOnly"`
 }
 
+// Defaults defines default settings to all tasks in the workflow.
+type Defaults struct {
+
+	// Docker/OCI image to serve as the container for the step in question.
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// Specifies the template to create the pod associated to underlying Tekton TaskRun objects.
+	// +optional
+	PodTemplate *pipelinev1beta1.PodTemplate `json:"podTemplate,omitempty"`
+
+	// Service account to be assigned to the underlying TaskRun object.
+	// +optional
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+}
+
 // Task contains information about the tasks that make up the workflow.
 type Task struct {
 
@@ -248,7 +268,7 @@ type Task struct {
 	// +optional
 	Params map[string]string `json:"params,omitempty"`
 
-	// Specifies the template to create the pod associated to the underwing Tekton TaskRun object.
+	// Specifies the template to create the pod associated to the underlying Tekton TaskRun object.
 	// +optional
 	PodTemplate *pipelinev1beta1.PodTemplate `json:"podTemplate,omitempty"`
 
@@ -260,7 +280,7 @@ type Task struct {
 	// +optional
 	Resources corev1.ResourceList `json:"resources,omitempty"`
 
-	// Service account to be assigned to the underwing TaskRun object.
+	// Service account to be assigned to the underlying TaskRun object.
 	// +optional
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 
