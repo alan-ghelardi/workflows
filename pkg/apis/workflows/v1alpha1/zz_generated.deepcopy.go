@@ -118,6 +118,11 @@ func (in *Task) DeepCopyInto(out *Task) {
 			(*out)[key] = val
 		}
 	}
+	if in.Need != nil {
+		in, out := &in.Need, &out.Need
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Params != nil {
 		in, out := &in.Params, &out.Params
 		*out = make(map[string]string, len(*in))

@@ -98,6 +98,8 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 		pipelineTask.TaskSpec = b.buildEmbededTask(task)
 	}
 
+	pipelineTask.RunAfter = task.Need
+
 	pipelineTask.Retries = task.Retries
 
 	pipelineTask.Timeout = task.Timeout

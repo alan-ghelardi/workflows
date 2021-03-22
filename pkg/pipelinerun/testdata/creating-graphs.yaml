@@ -1,0 +1,21 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: build-and-release-stuff
+  namespace: dev
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+
+  tasks:
+
+    build:
+      steps:
+      - run: make build
+
+    release:
+      needs:
+        - build
+      steps:
+      - run: make release

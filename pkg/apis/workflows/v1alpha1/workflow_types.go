@@ -264,6 +264,10 @@ type Task struct {
 	// +optional
 	Env map[string]string `json:"env,omitempty"`
 
+	// List of upstream tasks this task depends on.
+	// +optional
+	Need []string `json:"needs,omitempty"`
+
 	// Execution parameters for this task.
 	// +optional
 	Params map[string]string `json:"params,omitempty"`
