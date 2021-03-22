@@ -320,21 +320,22 @@ type EmbeddedStep struct {
 	// +optional
 	Run string `json:"run,omitempty"`
 
-	// Selects a built-in action to run as part of the task in question.
+	// Selects a built-in step to run as part of the task in question.
 	// +optional
-	Use BuiltInAction `json:"uses,omitempty"`
+	Use BuiltInStep `json:"uses,omitempty"`
 
 	// Step's working directory.
 	// +optional
 	WorkingDir string `json:"workingDir,omitempty"`
 }
 
-// BuiltInAction represents a set of comon actions in CI pipelines (such as
+// BuiltInStep represents a set of comon actions in CI pipelines (such as
 // checking out code) which are provided out of the box by workflows.
-type BuiltInAction string
+type BuiltInStep string
 
+// Predefined built-in steps.
 const (
-	CheckoutAction BuiltInAction = "checkout"
+	CheckoutStep BuiltInStep = "checkout"
 )
 
 // WorkflowStatus defines the observed state of Workflow

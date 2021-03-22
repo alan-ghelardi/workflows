@@ -55,7 +55,7 @@ EOF
 cd {{.Destination}}
 echo -n "$(git rev-parse HEAD)" > /tekton/results/{{.ResultName}}`))
 
-// Checkout is a built-in action for checking out Github repositories into Tekton task.
+// Checkout is a built-in step for checking out Github repositories into Tekton task.
 type Checkout struct {
 	workflow *workflowsv1alpha1.Workflow
 	event    *github.Event
@@ -71,7 +71,7 @@ type CheckoutOptions struct {
 	URL           string
 }
 
-// BuildStep implements BuiltInAction.
+// BuildStep implements BuiltInStep.
 func (c *Checkout) BuildStep(embeddedStep workflowsv1alpha1.EmbeddedStep) pipelinev1beta1.Step {
 	return buildCheckoutStep(embeddedStep, c.workflow.Spec.Repository, c.event)
 }
@@ -145,8 +145,8 @@ func renderCheckoutScript(options CheckoutOptions) string {
 	return buffer.String()
 }
 
-// ModifyEmbeddedTask implements BuiltInAction.
-func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
+// PostEmbeddedTaskCreation implements BuiltInStep.
+func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) {
 	// Create the projects workspace
 	if task.Workspaces == nil {
 		task.Workspaces = make([]pipelinev1beta1.WorkspaceDeclaration, 0)
@@ -190,7 +190,7 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 		for _, repo := range c.workflow.Spec.AdditionalRepositories {
 			embeddedStep := workflowsv1alpha1.EmbeddedStep{
 				Name: fmt.Sprintf("checkout-%s", repo.Name),
-				Use:  workflowsv1alpha1.CheckoutAction,
+				Use:  workflowsv1alpha1.CheckoutStep,
 			}
 
 			steps = append(steps, buildCheckoutStep(embeddedStep, &repo, event))
@@ -223,8 +223,8 @@ func (c *Checkout) ModifyEmbeddedTask(task *pipelinev1beta1.EmbeddedTask) {
 	}
 }
 
-// ModifyPipelineTask implements BuitInAction.
-func (c *Checkout) ModifyPipelineTask(task *pipelinev1beta1.PipelineTask) {
+// PostPipelineTaskCreation implements BuitInAction.
+func (c *Checkout) PostPipelineTaskCreation(task *pipelinev1beta1.PipelineTask) {
 	if task.Workspaces == nil {
 		task.Workspaces = make([]pipelinev1beta1.WorkspacePipelineTaskBinding, 0)
 	}
@@ -235,8 +235,8 @@ func (c *Checkout) ModifyPipelineTask(task *pipelinev1beta1.PipelineTask) {
 	})
 }
 
-// ModifyPipelineSpec implements BuiltInAction.
-func (c *Checkout) ModifyPipelineSpec(pipeline *pipelinev1beta1.PipelineSpec) {
+// PostPipelineSpecCreation implements BuiltInStep.
+func (c *Checkout) PostPipelineSpecCreation(pipeline *pipelinev1beta1.PipelineSpec) {
 	if pipeline.Workspaces == nil {
 		pipeline.Workspaces = make([]pipelinev1beta1.PipelineWorkspaceDeclaration, 0)
 	}
@@ -245,8 +245,8 @@ func (c *Checkout) ModifyPipelineSpec(pipeline *pipelinev1beta1.PipelineSpec) {
 	})
 }
 
-// ModifyPipelineRun implements BuiltInAction.
-func (c *Checkout) ModifyPipelineRun(pipelineRun *pipelinev1beta1.PipelineRun) {
+// PostPipelineRunCreation implements BuiltInStep.
+func (c *Checkout) PostPipelineRunCreation(pipelineRun *pipelinev1beta1.PipelineRun) {
 	if pipelineRun.Spec.Workspaces == nil {
 		pipelineRun.Spec.Workspaces = make([]pipelinev1beta1.WorkspaceBinding, 0)
 	}
