@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/nubank/workflows/pkg/apis/config"
-	"github.com/nubank/workflows/pkg/filter"
+	"github.com/nubank/workflows/pkg/filters"
 	"github.com/nubank/workflows/pkg/github"
 	"go.uber.org/zap"
 
@@ -89,7 +89,7 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 		logger.Info("Defaulting to the workflow's configuration read from the cluster")
 	}
 
-	if ok, message := filter.VerifyCriteria(workflow, event); !ok {
+	if ok, message := filters.CanTrigger(workflow, event); !ok {
 		logger.Info(message)
 		return Forbidden(message)
 	}

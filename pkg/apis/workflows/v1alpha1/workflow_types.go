@@ -169,6 +169,10 @@ type WorkflowSpec struct {
 	// +optional
 	Paths []string `json:"paths,omitempty"`
 
+	// Default settings that will apply to all tasks in the workflow.
+	// +optional
+	Defaults *Defaults `json:"defaults,omitempty"`
+
 	// The tasks that make up the workflow.
 	Tasks map[string]*Task `json:"tasks"`
 }
@@ -237,6 +241,22 @@ type DeployKey struct {
 	ReadOnly bool `json:"readOnly"`
 }
 
+// Defaults defines default settings to all tasks in the workflow.
+type Defaults struct {
+
+	// Docker/OCI image to serve as the container for the step in question.
+	// +optional
+	Image string `json:"image,omitempty"`
+
+	// Specifies the template to create the pod associated to underlying Tekton TaskRun objects.
+	// +optional
+	PodTemplate *pipelinev1beta1.PodTemplate `json:"podTemplate,omitempty"`
+
+	// Service account to be assigned to the underlying TaskRun object.
+	// +optional
+	ServiceAccount string `json:"serviceAccount,omitempty"`
+}
+
 // Task contains information about the tasks that make up the workflow.
 type Task struct {
 
@@ -244,11 +264,15 @@ type Task struct {
 	// +optional
 	Env map[string]string `json:"env,omitempty"`
 
+	// List of upstream tasks this task depends on.
+	// +optional
+	Need []string `json:"needs,omitempty"`
+
 	// Execution parameters for this task.
 	// +optional
 	Params map[string]string `json:"params,omitempty"`
 
-	// Specifies the template to create the pod associated to the underwing Tekton TaskRun object.
+	// Specifies the template to create the pod associated to the underlying Tekton TaskRun object.
 	// +optional
 	PodTemplate *pipelinev1beta1.PodTemplate `json:"podTemplate,omitempty"`
 
@@ -260,7 +284,7 @@ type Task struct {
 	// +optional
 	Resources corev1.ResourceList `json:"resources,omitempty"`
 
-	// Service account to be assigned to the underwing TaskRun object.
+	// Service account to be assigned to the underlying TaskRun object.
 	// +optional
 	ServiceAccount string `json:"serviceAccount,omitempty"`
 
@@ -296,21 +320,22 @@ type EmbeddedStep struct {
 	// +optional
 	Run string `json:"run,omitempty"`
 
-	// Selects a built-in action to run as part of the task in question.
+	// Selects a built-in step to run as part of the task in question.
 	// +optional
-	Use BuiltInAction `json:"uses,omitempty"`
+	Use BuiltInStep `json:"uses,omitempty"`
 
 	// Step's working directory.
 	// +optional
 	WorkingDir string `json:"workingDir,omitempty"`
 }
 
-// BuiltInAction represents a set of comon actions in CI pipelines (such as
+// BuiltInStep represents a set of comon actions in CI pipelines (such as
 // checking out code) which are provided out of the box by workflows.
-type BuiltInAction string
+type BuiltInStep string
 
+// Predefined built-in steps.
 const (
-	CheckoutAction BuiltInAction = "checkout"
+	CheckoutStep BuiltInStep = "checkout"
 )
 
 // WorkflowStatus defines the observed state of Workflow

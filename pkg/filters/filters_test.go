@@ -1,4 +1,4 @@
-package filter
+package filters
 
 import (
 	"testing"
@@ -171,7 +171,7 @@ func TestWithEmptyPathsSlice(t *testing.T) {
 	}
 }
 
-func TestVerifyFilterCriteria(t *testing.T) {
+func TestCanTrigger(t *testing.T) {
 	workflow := &workflowsv1alpha1.Workflow{
 		Spec: workflowsv1alpha1.WorkflowSpec{
 			Repository: &workflowsv1alpha1.Repository{Owner: "my-org",
@@ -192,10 +192,10 @@ func TestVerifyFilterCriteria(t *testing.T) {
 		wantResult  bool
 	}{
 		{"push", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, workflowAccepted, true},
-		{"pull_request", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: pull_request event doesn't match filters [push]", false},
-		{"push", "my-org/other-repo", "main", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: repository my-org/other-repo doesn't match workflow's repository my-org/my-repo", false},
-		{"push", "my-org/my-repo", "dev", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: branch dev doesn't match filters [main]", false},
-		{"push", "my-org/my-repo", "main", []string{"README.md"}, "Workflow was rejected because Github event doesn't satisfy filter criteria: modified files don't match filters [**/*.go]", false},
+		{"pull_request", "my-org/my-repo", "main", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy rule: pull_request event doesn't match filters [push]", false},
+		{"push", "my-org/other-repo", "main", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy rule: repository my-org/other-repo doesn't match workflow's repository my-org/my-repo", false},
+		{"push", "my-org/my-repo", "dev", []string{"pkg/x/y.go"}, "Workflow was rejected because Github event doesn't satisfy rule: branch dev doesn't match filters [main]", false},
+		{"push", "my-org/my-repo", "main", []string{"README.md"}, "Workflow was rejected because Github event doesn't satisfy rule: modified files don't match filters [**/*.go]", false},
 	}
 
 	for _, test := range tests {
@@ -204,7 +204,7 @@ func TestVerifyFilterCriteria(t *testing.T) {
 			Branch:     test.branch,
 			Changes:    test.files,
 		}
-		gotResult, gotMessage := VerifyCriteria(workflow, event)
+		gotResult, gotMessage := CanTrigger(workflow, event)
 		if test.wantMessage != gotMessage {
 			t.Errorf("Want message %s, got %s", test.wantMessage, gotMessage)
 		}

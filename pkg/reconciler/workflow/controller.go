@@ -26,10 +26,11 @@ func NewController(ctx context.Context, watcher configmap.Watcher) *controller.I
 	configStore.WatchConfigs(watcher)
 
 	reconciler := &Reconciler{
-		DeployKeys:         github.GetDeployKeyReconcilerOrDie(ctx),
-		Webhook:            github.GetWebhookReconcilerOrDie(ctx),
-		KubeClientSet:      kubeclient.Get(ctx),
-		WorkflowsClientSet: workflowsclient.Get(ctx),
+		deployKeys:         github.GetDeployKeyReconcilerOrDie(ctx),
+		webhook:            github.GetWebhookReconcilerOrDie(ctx),
+		repositories:       github.GetRepoReconcilerOrDie(ctx),
+		kubeClientSet:      kubeclient.Get(ctx),
+		workflowsClientSet: workflowsclient.Get(ctx),
 		workflowLister:     workflowInformer.Lister(),
 	}
 

@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func getPipelineTaskOrFail(t *testing.T, pipelineRun *pipelinev1beta1.PipelineRun, taskName string) (pipelinev1beta1.PipelineTask, error) {
+func findPipelineTaskOrFail(pipelineRun *pipelinev1beta1.PipelineRun, taskName string) (pipelinev1beta1.PipelineTask, error) {
 	for _, x := range pipelineRun.Spec.PipelineSpec.Tasks {
 		if taskName == x.Name {
 			return x, nil
@@ -90,12 +90,12 @@ func TestPipelineTasksWithTaskRefs(t *testing.T) {
 		Timeout: &metav1.Duration{Duration: 1 * time.Hour},
 	}
 
-	gotBuild, err := getPipelineTaskOrFail(t, pipelineRun, "build")
+	gotBuild, err := findPipelineTaskOrFail(pipelineRun, "build")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	gotTest, err := getPipelineTaskOrFail(t, pipelineRun, "test")
+	gotTest, err := findPipelineTaskOrFail(pipelineRun, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,12 +174,12 @@ go test ./...`,
 		},
 	}
 
-	gotLint, err := getPipelineTaskOrFail(t, pipelineRun, "lint")
+	gotLint, err := findPipelineTaskOrFail(pipelineRun, "lint")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	gotTest, err := getPipelineTaskOrFail(t, pipelineRun, "test")
+	gotTest, err := findPipelineTaskOrFail(pipelineRun, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,4 +319,29 @@ func TestLabelsAndAnnotations(t *testing.T) {
 		t.Errorf("Mismatch (-want +got):\n%s", diff)
 	}
 
+}
+
+func TestGraph(t *testing.T) {
+	workflow, err := testutils.ReadWorkflow("creating-graphs.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := testutils.ReadEvent("event.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRun := NewBuilder(workflow, event).Build()
+
+	task, err := findPipelineTaskOrFail(pipelineRun, "release")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"build"}
+	got := task.RunAfter
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Fail to convert attribut Need to RunAfter\nMismatch (-want +got):\n%s", diff)
+	}
 }
