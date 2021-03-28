@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/nubank/workflows/pkg/hooklistener"
-	"github.com/nubank/workflows/pkg/log"
+	"github.com/nubank/workflows/pkg/logging"
 	"go.uber.org/zap"
-	"knative.dev/pkg/logging"
+	knativelogging "knative.dev/pkg/logging"
 	"knative.dev/pkg/signals"
 )
 
 func main() {
 	ctx := signals.NewContext()
 
-	logger, err := log.NewLogger("hook-listener")
+	logger, err := logging.NewLogger("hook-listener")
 	if err != nil {
 		fmt.Printf("Unable to start hook-listener: %v", err)
 		os.Exit(1)
@@ -24,7 +24,7 @@ func main() {
 
 	defer logger.Sync()
 
-	ctx = logging.WithLogger(ctx, logger)
+	ctx = knativelogging.WithLogger(ctx, logger)
 	server := hooklistener.New(ctx)
 	go func() {
 		logger.Info("Starting hook-listener")
