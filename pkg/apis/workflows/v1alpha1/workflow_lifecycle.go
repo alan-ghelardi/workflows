@@ -45,6 +45,13 @@ func (w *WorkflowStatus) MarkDeployKeysError(message string) {
 		message)
 }
 
+func (w *WorkflowStatus) MarkRepositoriesError(message string) {
+	condSet.Manage(w).MarkFalse(
+		WorkflowConditionReady,
+		"RepositoriesError",
+		message)
+}
+
 func (w *WorkflowStatus) MarkWebhookError(message string) {
 	condSet.Manage(w).MarkFalse(
 		WorkflowConditionReady,

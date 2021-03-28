@@ -18,6 +18,7 @@ import (
 	workflowreconciler "github.com/nubank/workflows/pkg/client/injection/reconciler/workflows/v1alpha1/workflow"
 	listers "github.com/nubank/workflows/pkg/client/listers/workflows/v1alpha1"
 	"k8s.io/client-go/kubernetes"
+	"knative.dev/pkg/kmp"
 	"knative.dev/pkg/logging"
 	"knative.dev/pkg/reconciler"
 )
@@ -26,20 +27,24 @@ import (
 // Workflow resources.
 type Reconciler struct {
 
-	// DeployKeys allow us to manage Github deploy keys.
-	DeployKeys *github.DeployKeyReconciler
+	// deployKeys allow us to manage Github deploy keys.
+	deployKeys *github.DeployKeyReconciler
 
-	// Webhook allows us to manages the state of Github Webhooks.
-	Webhook *github.WebhookReconciler
+	// webhook allows us to manage the state of Github Webhooks.
+	webhook *github.WebhookReconciler
 
-	// KubeClientSet allows us to talk to the k8s for core APIs.
-	KubeClientSet kubernetes.Interface
+	// repositories allows us to configure workflow's repositories according
+	// to properties of Github repos.
+	repositories github.RepoReconciler
+
+	// kubeClientSet allows us to talk to the k8s for core APIs.
+	kubeClientSet kubernetes.Interface
 
 	// workflowLister indexes workflow objects.
 	workflowLister listers.WorkflowLister
 
-	// WorkflowsClientSet allows us to configure Workflows objects.
-	WorkflowsClientSet workflowsclientset.Interface
+	// workflowsClientSet allows us to configure Workflows objects.
+	workflowsClientSet workflowsclientset.Interface
 }
 
 // Check that our Reconciler implements the required interfaces
@@ -53,6 +58,16 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alp
 	logger := logging.FromContext(ctx)
 	logger.Info("Reconciling workflow")
 
+	// Save a copy with the current state to compare later
+	currentWorkflow := workflow.DeepCopy()
+
+	// Set important attributes such as Repository.DefaultBranch and
+	// Repository.Private in all repositories declared in this workflow
+	if err := r.repositories.ReconcileRepos(ctx, workflow); err != nil {
+		workflow.Status.MarkRepositoriesError(err.Error())
+		return err
+	}
+
 	if err := r.reconcileWebhook(ctx, workflow); err != nil {
 		workflow.Status.MarkWebhookError(err.Error())
 		return err
@@ -63,6 +78,19 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alp
 		return err
 	}
 
+	// Verify whether the spec has changed (e.g. repository settings were modified).
+	equal, err := kmp.SafeEqual(workflow.Spec, currentWorkflow.Spec)
+	if err != nil {
+		return fmt.Errorf("Error diffing workflow: %w", err)
+	}
+
+	if !equal {
+		// The spec has changed and we'll sync the changes.
+		if _, err := r.workflowsClientSet.WorkflowsV1alpha1().Workflows(workflow.GetNamespace()).Update(ctx, workflow, metav1.UpdateOptions{}); err != nil {
+			return err
+		}
+	}
+
 	workflow.Status.MarkReady()
 
 	return nil
@@ -71,7 +99,7 @@ func (r *Reconciler) ReconcileKind(ctx context.Context, workflow *workflowsv1alp
 // reconcileWebhook keeps Github Webhooks in sync with the desired state
 // declared in workflows.
 func (r *Reconciler) reconcileWebhook(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	webhook, err := r.Webhook.ReconcileHook(ctx, workflow)
+	webhook, err := r.webhook.ReconcileHook(ctx, workflow)
 	if err != nil {
 		return err
 	}
@@ -123,7 +151,7 @@ func (r *Reconciler) getSecret(ctx context.Context, namespace, name string) (*co
 		err    error
 	)
 
-	secret, err = r.KubeClientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
+	secret, err = r.kubeClientSet.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
 
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, fmt.Errorf("Error getting Secret %s/%s: %w", namespace, name, err)
@@ -138,7 +166,7 @@ func (r *Reconciler) getSecret(ctx context.Context, namespace, name string) (*co
 
 // createSecret creates the supplied Secret object.
 func (r *Reconciler) createSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, secret *corev1.Secret) error {
-	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+	if _, err := r.kubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("Error creating Secret %s/%s: %w", secret.GetNamespace(), secret.GetName(), err)
 	}
 
@@ -150,7 +178,7 @@ func (r *Reconciler) createSecret(ctx context.Context, workflow *workflowsv1alph
 
 // updateSecret updates the supplied Secret object.
 func (r *Reconciler) updateSecret(ctx context.Context, secret *corev1.Secret) error {
-	if _, err := r.KubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
+	if _, err := r.kubeClientSet.CoreV1().Secrets(secret.GetNamespace()).Update(ctx, secret, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("Error updating Secret %s/%s: %w", secret.GetNamespace(), secret.GetName(), err)
 	}
 
@@ -163,7 +191,7 @@ func (r *Reconciler) updateSecret(ctx context.Context, secret *corev1.Secret) er
 // reconcileDeployKeys keeps Github deploy keys in sync with the desired state
 // declared in workflows.
 func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflowsv1alpha1.Workflow) error {
-	keyPairs, err := r.DeployKeys.ReconcileKeys(ctx, workflow)
+	keyPairs, err := r.deployKeys.ReconcileKeys(ctx, workflow)
 	if err != nil {
 		return err
 	}
@@ -208,11 +236,11 @@ func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *wo
 
 // FinalizeKind implements Finalizer.FinalizeKind.
 func (r *Reconciler) FinalizeKind(ctx context.Context, workflow *workflowsv1alpha1.Workflow) reconciler.Event {
-	if err := r.Webhook.Delete(ctx, workflow); err != nil {
+	if err := r.webhook.Delete(ctx, workflow); err != nil {
 		return err
 	}
 
-	if err := r.DeployKeys.Delete(ctx, workflow); err != nil {
+	if err := r.deployKeys.Delete(ctx, workflow); err != nil {
 		return err
 	}
 	return nil
