@@ -1,0 +1,38 @@
+{
+  "ref": "refs/heads/dev",
+  "repository": {
+    "name": "my-repo",
+    "full_name": "john-doe/my-repo",
+    "owner": {
+      "name": "john-doe"
+    },
+    "pushed_at": 1613517959
+  },
+  "sender": {
+    "login": "john-doe",
+    "id": 42
+  },
+  "forced": false,
+  "base_ref": null,
+  "commits": [
+    {
+      "message": "Test",
+      "added": [],
+      "removed": [],
+      "modified": [
+        "README.md"
+      ]
+    },
+    {
+      "message": "Test",
+      "added": [],
+      "removed": [],
+      "modified": [
+        "CHANGELOG.md"
+      ]
+    }
+  ],
+  "head_commit": {
+    "id": "833568e"
+  }
+}

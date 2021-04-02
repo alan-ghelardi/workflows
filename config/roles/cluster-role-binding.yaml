@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: workflows
+subjects:
+  - kind: ServiceAccount
+    name: controller
+    namespace: workflows-system
+roleRef:
+  kind: ClusterRole
+  name: workflows
+  apiGroup: rbac.authorization.k8s.io

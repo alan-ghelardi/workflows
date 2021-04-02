@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-github-app
+  namespace: workflows-system
+  labels:
+    workflows.workflows.dev/release: devel
+data:
+  app-id: "0"
+  installation-id: "99"

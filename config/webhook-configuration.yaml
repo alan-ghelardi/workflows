@@ -1,0 +1,52 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: defaulting.webhook.workflows-system.workflows.dev
+webhooks:
+- admissionReviewVersions:
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook
+      namespace: workflows-system
+  failurePolicy: Fail
+  name: defaulting.webhook.workflows-system.workflows.dev
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validation.webhook.workflows-system.workflows.dev
+webhooks:
+- admissionReviewVersions:
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook
+      namespace: workflows-system
+  failurePolicy: Fail
+  name: validation.webhook.workflows-system.workflows.dev
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: config.webhook.workflows-system.workflows.dev
+webhooks:
+- admissionReviewVersions:
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook
+      namespace: workflows-system
+  failurePolicy: Fail
+  name: config.webhook.workflows-system.workflows.dev
+  namespaceSelector:
+    matchExpressions:
+    - key: workflows.workflows.dev/release
+      operator: Exists
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webhook-certs
+  namespace: workflows-system
+# The data is populated at install time.

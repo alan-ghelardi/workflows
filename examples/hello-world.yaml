@@ -1,0 +1,17 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: hello-world
+spec:
+  repo:
+    name: dummy-clj-lib
+    owner: alan-ghelardi
+
+    events:
+      - push
+
+  tasks:
+    hello-world:
+      steps:
+        - uses: checkout
+        - run: pwd && ls
