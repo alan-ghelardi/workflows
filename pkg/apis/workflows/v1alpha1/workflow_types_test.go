@@ -43,3 +43,49 @@ func TestHooksURL(t *testing.T) {
 		}
 	}
 }
+
+func TestNeedsSSHPrivateKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		in   *Repository
+		want bool
+	}{
+		{
+			name: "private repository",
+			in:   &Repository{Private: true},
+			want: true,
+		},
+		{
+			name: "public repository",
+			in:   &Repository{Private: false},
+			want: false,
+		},
+		{
+			name: "private repository with write permissions",
+			in: &Repository{
+				Private: true,
+				DeployKey: &DeployKey{
+					ReadOnly: false,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "public repository with write permissions",
+			in: &Repository{
+				Private: false,
+				DeployKey: &DeployKey{
+					ReadOnly: false,
+				},
+			},
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		got := test.in.NeedsSSHPrivateKeys()
+		if test.want != got {
+			t.Errorf("Fail in %s: want %t, but got %t", test.name, test.want, got)
+		}
+	}
+}

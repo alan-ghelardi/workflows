@@ -47,15 +47,15 @@ EOF
 /ko-app/git-init \
     -url="{{.URL}}" \
     -revision="{{.Revision}}" \
-    -path "{{.Destination}}" \
+    -path="{{.Destination}}" \
     -sslVerify="true" \
     -submodules="true" \
-    -depth "{{.Dept}}"
+    -depth="{{.Dept}}"
 
 cd {{.Destination}}
 echo -n "$(git rev-parse HEAD)" > /tekton/results/{{.ResultName}}`))
 
-// Checkout is a built-in step for checking out Github repositories into Tekton task.
+// Checkout is a built-in step for checking out Github repositories into a Tekton task.
 type Checkout struct {
 	workflow *workflowsv1alpha1.Workflow
 	event    *github.Event
@@ -116,7 +116,7 @@ func BuildCheckoutOptions(repo *workflowsv1alpha1.Repository, event *github.Even
 		options.SSHPrivateKey = fmt.Sprintf("%s/%s", sshPrivateKeysMountPath, repo.GetSSHPrivateKeyName())
 		options.URL = fmt.Sprintf("git@github.com:%s/%s.git", repo.Owner, repo.Name)
 	} else {
-		options.URL = fmt.Sprintf("https://github.com/%s/%s", repo.Owner, repo.Name)
+		options.URL = fmt.Sprintf("https://github.com/%s/%s.git", repo.Owner, repo.Name)
 	}
 
 	if event.HeadCommitSHA != "" {
@@ -149,7 +149,7 @@ func renderCheckoutScript(options CheckoutOptions) string {
 func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) {
 	// Create the projects workspace
 	if task.Workspaces == nil {
-		task.Workspaces = make([]pipelinev1beta1.WorkspaceDeclaration, 0)
+		task.Workspaces = make([]pipelinev1beta1.WorkspaceDeclaration, 0, 1)
 	}
 	task.Workspaces = append(task.Workspaces, pipelinev1beta1.WorkspaceDeclaration{
 		Name: projectsWorkspace,
@@ -167,8 +167,8 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 	// Create results for exposing the precise commit used to fetch repositories
 	repositories := c.workflow.GetRepositories()
 
-	if task.Results != nil {
-		task.Results = make([]pipelinev1beta1.TaskResult, len(repositories))
+	if task.Results == nil {
+		task.Results = make([]pipelinev1beta1.TaskResult, 0, len(repositories))
 	}
 
 	for _, repo := range repositories {
@@ -226,7 +226,7 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 // PostPipelineTaskCreation implements BuitInAction.
 func (c *Checkout) PostPipelineTaskCreation(task *pipelinev1beta1.PipelineTask) {
 	if task.Workspaces == nil {
-		task.Workspaces = make([]pipelinev1beta1.WorkspacePipelineTaskBinding, 0)
+		task.Workspaces = make([]pipelinev1beta1.WorkspacePipelineTaskBinding, 0, 1)
 	}
 
 	task.Workspaces = append(task.Workspaces, pipelinev1beta1.WorkspacePipelineTaskBinding{
@@ -240,6 +240,7 @@ func (c *Checkout) PostPipelineSpecCreation(pipeline *pipelinev1beta1.PipelineSp
 	if pipeline.Workspaces == nil {
 		pipeline.Workspaces = make([]pipelinev1beta1.PipelineWorkspaceDeclaration, 0)
 	}
+
 	pipeline.Workspaces = append(pipeline.Workspaces, pipelinev1beta1.PipelineWorkspaceDeclaration{
 		Name: projectsWorkspace,
 	})

@@ -218,7 +218,16 @@ func (r *Repository) IsReadOnlyDeployKey() bool {
 // private keys (i.e. it's a private repository or the configured deploy key has
 // write permissions).
 func (r *Repository) NeedsSSHPrivateKeys() bool {
-	return r.Private || r.IsReadOnlyDeployKey()
+	if r.Private {
+		return true
+	}
+
+	if r.DeployKey == nil {
+		// Public repository with no deploy key set.
+		return false
+	}
+
+	return !r.IsReadOnlyDeployKey()
 }
 
 // String satisfies fmt.Stringer interface.

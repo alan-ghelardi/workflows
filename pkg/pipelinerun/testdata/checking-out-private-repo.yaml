@@ -1,0 +1,27 @@
+apiVersion: workflows.dev/v1alpha1
+kind: Workflow
+metadata:
+  name: lorem-ipsum
+  namespace: dev
+spec:
+  repo:
+    owner: john-doe
+    name: my-repo
+    private: true
+
+  tasks:
+
+    lint:
+      steps:
+      - uses: checkout
+      - name: golangci-lint
+        image: golang
+        run: golangci-lint run
+
+    test:
+      steps:
+      - name: checkout-code
+        uses: checkout
+      - name: test
+        image: golang
+        run: go test ./...
