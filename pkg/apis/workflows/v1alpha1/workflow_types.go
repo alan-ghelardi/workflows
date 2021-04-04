@@ -275,7 +275,7 @@ type Task struct {
 
 	// List of upstream tasks this task depends on.
 	// +optional
-	Need []string `json:"needs,omitempty"`
+	Require []string `json:"requires,omitempty"`
 
 	// Execution parameters for this task.
 	// +optional

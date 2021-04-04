@@ -121,7 +121,7 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 		pipelineTask.TaskSpec = b.buildEmbededTask(task)
 	}
 
-	pipelineTask.RunAfter = task.Need
+	pipelineTask.RunAfter = task.Require
 
 	pipelineTask.Retries = task.Retries
 
@@ -188,7 +188,7 @@ set -euo pipefail
 		Container: corev1.Container{
 			Name:            embeddedStep.Name,
 			Image:           embeddedStep.Image,
-			ImagePullPolicy: "Always",
+			ImagePullPolicy: corev1.PullAlways,
 			WorkingDir:      embeddedStep.WorkingDir,
 		},
 		Script: variables.Expand(script, b.replacements),

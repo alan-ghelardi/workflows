@@ -7,7 +7,13 @@ spec:
   repo:
     owner: john-doe
     name: my-repo
-    private: true
+    private: false
+
+  additionalRepos:
+  - owner: john-doe
+    name: my-other-repo
+    defaultBranch: main
+    private: false
 
   tasks:
 

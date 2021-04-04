@@ -12,7 +12,6 @@ import (
 )
 
 const (
-
 	// Image used for checking out code.
 	gitInitImage = "gcr.io/tekton-releases/github.com/tektoncd/pipeline/cmd/git-init:v0.18.1"
 
@@ -29,11 +28,16 @@ const (
 	sshPrivateKeysVolumeName = "ssh-private-keys"
 )
 
-// Shell script that performs the logic to check out repositories.
-// It is parsed as a Go template to facilitate the interpolation of parameters
-// that are resolved dynamically.
-var checkoutScript = template.Must(template.New("checkout").
-	Parse(`#!/usr/bin/env sh
+var (
+	// Mode to be assigned to the volume used to project SSH private keys.
+	// Same as r-- or 400.
+	defaultVolumeMode int32 = 256
+
+	// Shell script that performs the logic to check out repositories.
+	// It is parsed as a Go template to facilitate the interpolation of parameters
+	// that are resolved dynamically.
+	checkoutScript = template.Must(template.New("checkout").
+			Parse(`#!/usr/bin/env sh
 set -euo pipefail
 {{if .SSHPrivateKey}}
 mkdir -p ~/.ssh
@@ -54,6 +58,7 @@ EOF
 
 cd {{.Destination}}
 echo -n "$(git rev-parse HEAD)" > /tekton/results/{{.ResultName}}`))
+)
 
 // Checkout is a built-in step for checking out Github repositories into a Tekton task.
 type Checkout struct {
@@ -147,7 +152,7 @@ func renderCheckoutScript(options CheckoutOptions) string {
 
 // PostEmbeddedTaskCreation implements BuiltInStep.
 func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) {
-	// Create the projects workspace
+	// Create the projects workspace.
 	if task.Workspaces == nil {
 		task.Workspaces = make([]pipelinev1beta1.WorkspaceDeclaration, 0, 1)
 	}
@@ -164,7 +169,7 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 		}
 	}
 
-	// Create results for exposing the precise commit used to fetch repositories
+	// Create results for exposing the precise commit used to fetch repositories.
 	repositories := c.workflow.GetRepositories()
 
 	if task.Results == nil {
@@ -178,21 +183,26 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 	}
 
 	// Control whether a volume for projecting SSH private keys should be
-	// mounted
+	// mounted.
 	needsSSHPrivateKeys := c.workflow.Spec.Repository.NeedsSSHPrivateKeys()
 
-	// Inject steps for checking out additional repositories
+	// Inject steps for checking out additional repositories.
 	if len(c.workflow.Spec.AdditionalRepositories) != 0 {
-		steps := task.Steps[:1]
+		// Create a new array to hold steps.
+		steps := make([]pipelinev1beta1.Step, 0, len(task.Steps)+len(c.workflow.Spec.AdditionalRepositories))
+		// Append the step that pulls down the main repository.
+		steps = append(steps, task.Steps[0])
+
 		// Create an empty event since additional repositories aren't bound to Github events.
 		event := &github.Event{}
 
+		// Create a checkout step for each additional repository
+		// configured in the workflow.
 		for _, repo := range c.workflow.Spec.AdditionalRepositories {
 			embeddedStep := workflowsv1alpha1.EmbeddedStep{
 				Name: fmt.Sprintf("checkout-%s", repo.Name),
 				Use:  workflowsv1alpha1.CheckoutStep,
 			}
-
 			steps = append(steps, buildCheckoutStep(embeddedStep, &repo, event))
 
 			if repo.NeedsSSHPrivateKeys() {
@@ -200,7 +210,11 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 			}
 		}
 
-		steps = append(steps, task.Steps[1:]...)
+		// Copy remaining steps to the new array.
+		if len(task.Steps) > 1 {
+			steps = append(steps, task.Steps[1:]...)
+		}
+
 		task.Steps = steps
 	}
 
@@ -208,14 +222,13 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 	// associated to this workflow), create the volume to mount the secret
 	// containing the deploy key into the step.
 	if needsSSHPrivateKeys {
-		// Same as r-- or 400.
-		var defaultMode int32 = 256
+
 		task.Volumes = []corev1.Volume{{
 			Name: sshPrivateKeysVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  c.workflow.GetDeployKeysSecretName(),
-					DefaultMode: &defaultMode,
+					DefaultMode: &defaultVolumeMode,
 				},
 			},
 		},
@@ -223,10 +236,16 @@ func (c *Checkout) PostEmbeddedTaskCreation(task *pipelinev1beta1.EmbeddedTask) 
 	}
 }
 
-// PostPipelineTaskCreation implements BuitInAction.
+// PostPipelineTaskCreation implements BuiltInStep.
 func (c *Checkout) PostPipelineTaskCreation(task *pipelinev1beta1.PipelineTask) {
 	if task.Workspaces == nil {
 		task.Workspaces = make([]pipelinev1beta1.WorkspacePipelineTaskBinding, 0, 1)
+	}
+
+	for _, workspace := range task.Workspaces {
+		if workspace.Workspace == projectsWorkspace {
+			return
+		}
 	}
 
 	task.Workspaces = append(task.Workspaces, pipelinev1beta1.WorkspacePipelineTaskBinding{
@@ -238,7 +257,13 @@ func (c *Checkout) PostPipelineTaskCreation(task *pipelinev1beta1.PipelineTask) 
 // PostPipelineSpecCreation implements BuiltInStep.
 func (c *Checkout) PostPipelineSpecCreation(pipeline *pipelinev1beta1.PipelineSpec) {
 	if pipeline.Workspaces == nil {
-		pipeline.Workspaces = make([]pipelinev1beta1.PipelineWorkspaceDeclaration, 0)
+		pipeline.Workspaces = make([]pipelinev1beta1.PipelineWorkspaceDeclaration, 0, 1)
+	}
+
+	for _, workspace := range pipeline.Workspaces {
+		if workspace.Name == projectsWorkspace {
+			return
+		}
 	}
 
 	pipeline.Workspaces = append(pipeline.Workspaces, pipelinev1beta1.PipelineWorkspaceDeclaration{
@@ -251,6 +276,13 @@ func (c *Checkout) PostPipelineRunCreation(pipelineRun *pipelinev1beta1.Pipeline
 	if pipelineRun.Spec.Workspaces == nil {
 		pipelineRun.Spec.Workspaces = make([]pipelinev1beta1.WorkspaceBinding, 0)
 	}
+
+	for _, workspace := range pipelineRun.Spec.Workspaces {
+		if workspace.Name == projectsWorkspace {
+			return
+		}
+	}
+
 	pipelineRun.Spec.Workspaces = append(pipelineRun.Spec.Workspaces, pipelinev1beta1.WorkspaceBinding{
 		Name:     projectsWorkspace,
 		EmptyDir: &corev1.EmptyDirVolumeSource{},

@@ -28,7 +28,7 @@ import (
 type Reconciler struct {
 
 	// deployKeys allow us to manage Github deploy keys.
-	deployKeys *github.DeployKeyReconciler
+	deployKeys github.DeployKeysReconciler
 
 	// webhook allows us to manage the state of Github Webhooks.
 	webhook *github.WebhookReconciler

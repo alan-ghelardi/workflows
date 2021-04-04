@@ -15,7 +15,7 @@ spec:
       - run: make build
 
     release:
-      needs:
+      requires:
         - build
       steps:
       - run: make release
