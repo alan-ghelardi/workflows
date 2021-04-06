@@ -7,6 +7,7 @@ import (
 	"github.com/nubank/workflows/pkg/apis/config"
 	"github.com/nubank/workflows/pkg/filters"
 	"github.com/nubank/workflows/pkg/github"
+	"github.com/nubank/workflows/pkg/secrets"
 	"go.uber.org/zap"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -16,7 +17,6 @@ import (
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
 	"github.com/nubank/workflows/pkg/pipelinerun"
-	"github.com/nubank/workflows/pkg/secret"
 	tektonclientset "github.com/tektoncd/pipeline/pkg/client/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -65,7 +65,7 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 		return InternalServerError("An internal error has occurred while verifying the request signature")
 	}
 
-	webhookSecretToken, err := secret.GetSecretToken(webhookSecret)
+	webhookSecretToken, err := secrets.GetSecretToken(webhookSecret)
 	if err != nil {
 		logger.Error("Unable to read Webhook secret", zap.Error(err))
 		return InternalServerError("An internal error has occurred while verifying the request signature")

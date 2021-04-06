@@ -10,13 +10,13 @@ import (
 	"github.com/google/go-github/v33/github"
 	"github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 
-	"github.com/nubank/workflows/pkg/secret"
+	"github.com/nubank/workflows/pkg/secrets"
 )
 
 // DeployKeysReconciler keeps Github deploy keys in sync with the desired state
 // declared in workflows.
 type DeployKeysReconciler interface {
-	ReconcileKeys(ctx context.Context, workflow *v1alpha1.Workflow) ([]secret.KeyPair, error)
+	ReconcileKeys(ctx context.Context, workflow *v1alpha1.Workflow) ([]secrets.KeyPair, error)
 	Delete(ctx context.Context, workflow *v1alpha1.Workflow) error
 }
 
@@ -26,8 +26,8 @@ type defaultDeployKeysReconciler struct {
 }
 
 // ReconcileKeys creates or updates all Github deploy keys associated to the supplied workflow.
-func (d *defaultDeployKeysReconciler) ReconcileKeys(ctx context.Context, workflow *v1alpha1.Workflow) ([]secret.KeyPair, error) {
-	keyPairs := make([]secret.KeyPair, 0)
+func (d *defaultDeployKeysReconciler) ReconcileKeys(ctx context.Context, workflow *v1alpha1.Workflow) ([]secrets.KeyPair, error) {
+	keyPairs := make([]secrets.KeyPair, 0)
 	repos := workflow.GetRepositories()
 
 	for _, repo := range repos {
@@ -43,12 +43,12 @@ func (d *defaultDeployKeysReconciler) ReconcileKeys(ctx context.Context, workflo
 }
 
 // reconcileKey creates or updates a Github DeployKey.
-func (d *defaultDeployKeysReconciler) reconcileKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*secret.KeyPair, error) {
+func (d *defaultDeployKeysReconciler) reconcileKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*secrets.KeyPair, error) {
 	var (
 		id      *int64
 		err     error
 		key     *github.Key
-		keyPair *secret.KeyPair
+		keyPair *secrets.KeyPair
 	)
 
 	logger := logging.FromContext(ctx).With("repository", repo)
@@ -117,14 +117,14 @@ func (d *defaultDeployKeysReconciler) changedSinceLastSync(repo *v1alpha1.Reposi
 }
 
 // createDeployKey creates a new Github DeployKey.
-func (d *defaultDeployKeysReconciler) createDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*github.Key, *secret.KeyPair, error) {
+func (d *defaultDeployKeysReconciler) createDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository) (*github.Key, *secrets.KeyPair, error) {
 	var (
 		key     *github.Key
-		keyPair *secret.KeyPair
+		keyPair *secrets.KeyPair
 		err     error
 	)
 
-	keyPair, err = secret.GenerateKeyPair(repo)
+	keyPair, err = secrets.GenerateKeyPair(repo)
 	if err != nil {
 		return key, keyPair, err
 	}
@@ -150,7 +150,7 @@ func (d *defaultDeployKeysReconciler) createDeployKey(ctx context.Context, workf
 }
 
 // updateDeployKey updates an existing Github DeployKey.
-func (d *defaultDeployKeysReconciler) updateDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository, id int64) (*github.Key, *secret.KeyPair, error) {
+func (d *defaultDeployKeysReconciler) updateDeployKey(ctx context.Context, workflow *v1alpha1.Workflow, repo *v1alpha1.Repository, id int64) (*github.Key, *secrets.KeyPair, error) {
 	err := d.deleteDeployKey(ctx, repo, id)
 	if err != nil {
 		return nil, nil, err

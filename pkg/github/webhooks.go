@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-github/v33/github"
 	"github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
-	"github.com/nubank/workflows/pkg/secret"
+	"github.com/nubank/workflows/pkg/secrets"
 )
 
 // DefaultWebhookReconciler keeps Github Webhooks in sync to the desired state declared in
@@ -112,7 +112,7 @@ func (w *defaultWebhookReconciler) changedSinceLastSync(workflow *v1alpha1.Workf
 func (w *defaultWebhookReconciler) createWebhook(ctx context.Context, workflow *v1alpha1.Workflow) (*Webhook, error) {
 	repo := workflow.Spec.Repository
 
-	secretToken := secret.GenerateRandomToken()
+	secretToken := secrets.GenerateRandomToken()
 
 	hook, _, err := w.service.CreateHook(ctx,
 		repo.Owner,

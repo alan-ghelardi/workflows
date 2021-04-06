@@ -11,7 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/nubank/workflows/pkg/github"
-	"github.com/nubank/workflows/pkg/secret"
+	"github.com/nubank/workflows/pkg/secrets"
 
 	workflowsv1alpha1 "github.com/nubank/workflows/pkg/apis/workflows/v1alpha1"
 	workflowsclientset "github.com/nubank/workflows/pkg/client/clientset/versioned"
@@ -131,12 +131,12 @@ func (r *Reconciler) reconcileWebhookSecret(ctx context.Context, workflow *workf
 	}
 
 	if webhookSecret == nil {
-		webhookSecret = secret.OfWebhook(workflow, webhook.Secret)
+		webhookSecret = secrets.OfWebhook(workflow, webhook.Secret)
 		logger.Info("Creating a new Secret resource to store the newly-created Webhook secret token")
 		err = r.createSecret(ctx, workflow, webhookSecret)
 	} else {
 		logger.Infof("Updating Secret %s/%s with the newly-created Webhook secret token", webhookSecret.GetNamespace(), webhookSecret.GetName())
-		secret.SetSecretToken(webhookSecret, webhook.Secret)
+		secrets.SetSecretToken(webhookSecret, webhook.Secret)
 		err = r.updateSecret(ctx, webhookSecret)
 	}
 
@@ -208,7 +208,7 @@ func (r *Reconciler) reconcileDeployKeys(ctx context.Context, workflow *workflow
 }
 
 // reconcileDeployKeysSecret creates or updates the corev1.Secret object that holds SSH private keys for the workflow in question.
-func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, keyPairs []secret.KeyPair) error {
+func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *workflowsv1alpha1.Workflow, keyPairs []secrets.KeyPair) error {
 	var (
 		deployKeys *corev1.Secret
 		err        error
@@ -223,11 +223,11 @@ func (r *Reconciler) reconcileDeployKeysSecret(ctx context.Context, workflow *wo
 
 	if deployKeys == nil {
 		logger.Info("Creating new Secret to store SSH private keys")
-		deployKeys = secret.OfDeployKeys(workflow, keyPairs)
+		deployKeys = secrets.OfDeployKeys(workflow, keyPairs)
 		err = r.createSecret(ctx, workflow, deployKeys)
 	} else {
 		logger.Infof("Updating Secret %s/%s with the newly-created SSH private keys", deployKeys.GetNamespace(), deployKeys.GetName())
-		secret.SetSSHPrivateKeys(deployKeys, keyPairs)
+		secrets.SetSSHPrivateKeys(deployKeys, keyPairs)
 		err = r.updateSecret(ctx, deployKeys)
 	}
 
