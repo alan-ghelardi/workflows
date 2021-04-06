@@ -47,6 +47,11 @@ func (d *DefaultWorkflowReader) GetWorkflowContent(ctx context.Context, workflow
 		return nil, err
 	}
 
+	// Copy attributes that are meant to be immutable
+	originalWorkflow := workflow.DeepCopy()
+	w.Spec.Repository = originalWorkflow.Spec.Repository
+	w.Spec.AdditionalRepositories = originalWorkflow.Spec.AdditionalRepositories
+
 	return &w, nil
 }
 
