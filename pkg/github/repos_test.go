@@ -14,7 +14,7 @@ import (
 
 func TestReconcileReposSuccessfully(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
-	repositoryService := githubmocks.NewMockrepositoryService(mockCtrl)
+	repositoryService := githubmocks.NewMockrepositoriesService(mockCtrl)
 	reconciler := &defaultRepoReconciler{service: repositoryService}
 
 	repo1 := &workflowsv1alpha1.Repository{
@@ -78,7 +78,7 @@ func TestReconcileReposSuccessfully(t *testing.T) {
 
 func TestReturnsAnErrorWhenTheRepoReconcileFails(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
-	repositoryService := githubmocks.NewMockrepositoryService(mockCtrl)
+	repositoryService := githubmocks.NewMockrepositoriesService(mockCtrl)
 	reconciler := &defaultRepoReconciler{service: repositoryService}
 
 	workflow := &workflowsv1alpha1.Workflow{

@@ -31,7 +31,7 @@ type Reconciler struct {
 	deployKeys github.DeployKeysReconciler
 
 	// webhook allows us to manage the state of Github Webhooks.
-	webhook *github.WebhookReconciler
+	webhook github.WebhookReconciler
 
 	// repositories allows us to configure workflow's repositories according
 	// to properties of Github repos.

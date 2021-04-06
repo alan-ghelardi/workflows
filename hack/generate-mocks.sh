@@ -11,6 +11,7 @@ set -o pipefail
 
 cur_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null && pwd )"
 
+# Install mockgen tool if it isn't installed yet.
 if ! command -v mockgen &> /dev/null
 then
     echo "Installing mockgen tool..."
@@ -29,6 +30,7 @@ gen_mocks() {
     echo "Done"
 }
 
+# Call the function gen_mocks for each file containing interfaces to be mocked.
 
 gen_mocks pkg/github/interfaces.go
 gen_mocks pkg/github/workflow_reader.go
