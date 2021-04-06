@@ -129,7 +129,7 @@ func TestPipelineTasksWithEmbeddedTasks(t *testing.T) {
 				Steps: []pipelinev1beta1.Step{{Container: corev1.Container{
 					Name:            "golangci-lint",
 					Image:           "golang",
-					ImagePullPolicy: "Always",
+					ImagePullPolicy: corev1.PullAlways,
 				},
 					Script: `#!/usr/bin/env sh
 set -euo pipefail
@@ -160,7 +160,7 @@ golangci-lint run`,
 				Steps: []pipelinev1beta1.Step{{Container: corev1.Container{
 					Name:            "test",
 					Image:           "golang",
-					ImagePullPolicy: "Always",
+					ImagePullPolicy: corev1.PullAlways,
 					Env: []corev1.EnvVar{
 						{Name: "ENV_VAR_2", Value: "b"},
 					},
@@ -343,5 +343,90 @@ func TestGraph(t *testing.T) {
 	got := task.RunAfter
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Fail to convert attribut Need to RunAfter\nMismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCheckout(t *testing.T) {
+	workflow, err := testutils.ReadWorkflow("checking-out-one-repo.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event, err := testutils.ReadEvent("event.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipelineRun := NewBuilder(workflow, event).Build()
+
+	want := pipelinev1beta1.PipelineRunSpec{
+		PipelineSpec: &pipelinev1beta1.PipelineSpec{
+			Tasks: []pipelinev1beta1.PipelineTask{{
+				Name: "lint",
+				TaskSpec: &pipelinev1beta1.EmbeddedTask{
+					TaskSpec: pipelinev1beta1.TaskSpec{
+						Workspaces: []pipelinev1beta1.WorkspaceDeclaration{{
+							Name: projectsWorkspace,
+						},
+						},
+						Results: []pipelinev1beta1.TaskResult{{
+							Name: "my-repo-commit",
+						},
+						},
+						Steps: []pipelinev1beta1.Step{{
+							Container: corev1.Container{
+								Name:  "checkout",
+								Image: gitInitImage,
+							},
+							Script: `#!/usr/bin/env sh
+set -euo pipefail
+
+/ko-app/git-init \
+    -url="https://github.com/john-doe/my-repo.git" \
+    -revision="833568e" \
+    -path="$(workspaces.projects.path)/my-repo" \
+    -sslVerify="true" \
+    -submodules="true" \
+    -depth="1"
+
+cd $(workspaces.projects.path)/my-repo
+echo -n "$(git rev-parse HEAD)" > /tekton/results/my-repo-commit`,
+						},
+							{
+								Container: corev1.Container{
+									WorkingDir:      "$(workspaces.projects.path)/my-repo",
+									ImagePullPolicy: corev1.PullAlways,
+								},
+								Script: `#!/usr/bin/env sh
+set -euo pipefail
+ls`,
+							},
+						},
+					},
+				},
+				Workspaces: []pipelinev1beta1.WorkspacePipelineTaskBinding{{
+					Name:      projectsWorkspace,
+					Workspace: projectsWorkspace,
+				},
+				},
+			},
+			},
+			Workspaces: []pipelinev1beta1.PipelineWorkspaceDeclaration{{
+				Name: projectsWorkspace,
+			},
+			},
+		},
+		Workspaces: []pipelinev1beta1.WorkspaceBinding{{
+			Name:     projectsWorkspace,
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+		},
+		TaskRunSpecs: []pipelinev1beta1.PipelineTaskRunSpec{},
+	}
+
+	got := pipelineRun.Spec
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Mismatch (-want +got):\n%s", diff)
 	}
 }

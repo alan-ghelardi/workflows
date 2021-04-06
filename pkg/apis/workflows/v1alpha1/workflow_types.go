@@ -158,7 +158,7 @@ type WorkflowSpec struct {
 
 	// Names of Github events that trigger this workflow.
 	// +optional
-	Events []string `json:"triggersOn,omitempty"`
+	Events []string `json:"events,omitempty"`
 
 	// Configures the workflow to run on events related to those branches.
 	// +optional
@@ -218,7 +218,16 @@ func (r *Repository) IsReadOnlyDeployKey() bool {
 // private keys (i.e. it's a private repository or the configured deploy key has
 // write permissions).
 func (r *Repository) NeedsSSHPrivateKeys() bool {
-	return r.Private || r.IsReadOnlyDeployKey()
+	if r.Private {
+		return true
+	}
+
+	if r.DeployKey == nil {
+		// Public repository with no deploy key set.
+		return false
+	}
+
+	return !r.IsReadOnlyDeployKey()
 }
 
 // String satisfies fmt.Stringer interface.
@@ -266,7 +275,7 @@ type Task struct {
 
 	// List of upstream tasks this task depends on.
 	// +optional
-	Need []string `json:"needs,omitempty"`
+	Require []string `json:"requires,omitempty"`
 
 	// Execution parameters for this task.
 	// +optional

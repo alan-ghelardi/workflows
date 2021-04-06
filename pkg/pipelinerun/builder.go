@@ -14,7 +14,7 @@ import (
 
 // Builder builds Tekton PipelineRun objects.
 type Builder struct {
-	builtInSteps []BuiltInStep
+	builtInSteps map[BuiltInStep]bool
 	defaults     *config.Defaults
 	event        *github.Event
 	replacements *variables.Replacements
@@ -48,7 +48,7 @@ type BuiltInStep interface {
 // the provided workflow and event.
 func NewBuilder(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Builder {
 	return &Builder{
-		builtInSteps: make([]BuiltInStep, 0),
+		builtInSteps: make(map[BuiltInStep]bool),
 		defaults:     &config.Defaults{},
 		event:        event,
 		replacements: variables.MakeReplacements(workflow, event),
@@ -83,7 +83,7 @@ func (b *Builder) Build() *pipelinev1beta1.PipelineRun {
 	b.addDefaultLabelsAndAnnotations(pipelineRun)
 
 	// Let built-in steps to modify the PipelineRun resource.
-	for _, builtInStep := range b.builtInSteps {
+	for builtInStep := range b.builtInSteps {
 		builtInStep.PostPipelineRunCreation(pipelineRun)
 	}
 
@@ -97,7 +97,7 @@ func (b *Builder) buildPipelineSpec() *pipelinev1beta1.PipelineSpec {
 	}
 
 	// Let built-in steps to modify the PipelineSpec
-	for _, builtInStep := range b.builtInSteps {
+	for builtInStep := range b.builtInSteps {
 		builtInStep.PostPipelineSpecCreation(pipelineSpec)
 	}
 
@@ -121,14 +121,14 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 		pipelineTask.TaskSpec = b.buildEmbededTask(task)
 	}
 
-	pipelineTask.RunAfter = task.Need
+	pipelineTask.RunAfter = task.Require
 
 	pipelineTask.Retries = task.Retries
 
 	pipelineTask.Timeout = task.Timeout
 
 	// Let built-in steps to modify the pipeline task.
-	for _, builtInStep := range b.builtInSteps {
+	for builtInStep := range b.builtInSteps {
 		builtInStep.PostPipelineTaskCreation(&pipelineTask)
 	}
 
@@ -156,7 +156,7 @@ func (b *Builder) buildEmbededTask(task *workflowsv1alpha1.Task) *pipelinev1beta
 	}
 
 	// Let built-in steps to modify the embedded task
-	for _, builtInStep := range b.builtInSteps {
+	for builtInStep := range b.builtInSteps {
 		builtInStep.PostEmbeddedTaskCreation(embededTask)
 	}
 	return embededTask
@@ -188,7 +188,7 @@ set -euo pipefail
 		Container: corev1.Container{
 			Name:            embeddedStep.Name,
 			Image:           embeddedStep.Image,
-			ImagePullPolicy: "Always",
+			ImagePullPolicy: corev1.PullAlways,
 			WorkingDir:      embeddedStep.WorkingDir,
 		},
 		Script: variables.Expand(script, b.replacements),
@@ -215,7 +215,7 @@ func (b *Builder) invokeBuiltInAction(embeddedStep workflowsv1alpha1.EmbeddedSte
 		panic(fmt.Errorf("Unrecognized built-in step %s", embeddedStep.Use))
 	}
 
-	b.builtInSteps = append(b.builtInSteps, builtInStep)
+	b.builtInSteps[builtInStep] = true
 
 	return builtInStep.BuildStep(embeddedStep)
 }

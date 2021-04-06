@@ -1,10 +1,10 @@
-// package log provides a factory for creating Zap loggers for components that
+// package logging provides a factory for creating Zap loggers for components that
 // don't use the injection system supplied by Knative. Nevertheless, the
 // function NewLogger reads the same config-logging configmap and delegates the
 // responsibility of instantiating the logger to
 // knative.dev/pkg/logging/NewLogger, thus, keeping almost the same settings as
 // those used by controllers and webhooks.
-package log
+package logging
 
 import (
 	"fmt"

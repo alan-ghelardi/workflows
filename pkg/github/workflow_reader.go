@@ -18,12 +18,12 @@ type WorkflowReader interface {
 // DefaultWorkflowReader is the default implementation of WorkflowReader
 // interface.
 type DefaultWorkflowReader struct {
-	client *github.Client
+	service contentsService
 }
 
 // GetWorkflowContent implements WorkflowReader.GetWorkflowContent.
 func (d *DefaultWorkflowReader) GetWorkflowContent(ctx context.Context, workflow *workflowsv1alpha1.Workflow, filePath, ref string) (*workflowsv1alpha1.Workflow, error) {
-	content, _, response, err := d.client.Repositories.GetContents(ctx,
+	content, _, response, err := d.service.GetContents(ctx,
 		workflow.Spec.Repository.Owner,
 		workflow.Spec.Repository.Name,
 		filePath,
@@ -52,5 +52,5 @@ func (d *DefaultWorkflowReader) GetWorkflowContent(ctx context.Context, workflow
 
 // NewWorkflowReader creates a new WorkflowReader object.
 func NewWorkflowReader(client *github.Client) WorkflowReader {
-	return &DefaultWorkflowReader{client: client}
+	return &DefaultWorkflowReader{service: client.Repositories}
 }

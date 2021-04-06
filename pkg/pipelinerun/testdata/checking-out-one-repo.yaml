@@ -1,21 +1,17 @@
 apiVersion: workflows.dev/v1alpha1
 kind: Workflow
 metadata:
-  name: build-and-release-stuff
+  name: lorem-ipsum
   namespace: dev
 spec:
   repo:
     owner: john-doe
     name: my-repo
+    private: false
 
   tasks:
 
-    build:
+    lint:
       steps:
-      - run: make build
-
-    release:
-      requires:
-        - build
-      steps:
-      - run: make release
+      - uses: checkout
+      - run: ls

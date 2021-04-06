@@ -7,7 +7,7 @@ spec:
     name: dummy-clj-lib
     owner: alan-ghelardi
 
-  triggersOn:
+    events:
       - push
 
   tasks:

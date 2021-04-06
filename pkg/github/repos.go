@@ -14,7 +14,7 @@ type RepoReconciler interface {
 }
 
 type defaultRepoReconciler struct {
-	service repositoryService
+	service repositoriesService
 }
 
 // ReconcileRepos implements RepoReconciler.ReconcileRepos.

@@ -118,8 +118,8 @@ func (in *Task) DeepCopyInto(out *Task) {
 			(*out)[key] = val
 		}
 	}
-	if in.Need != nil {
-		in, out := &in.Need, &out.Need
+	if in.Require != nil {
+		in, out := &in.Require, &out.Require
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
