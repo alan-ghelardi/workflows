@@ -132,7 +132,7 @@ func TestPipelineTasksWithEmbeddedTasks(t *testing.T) {
 					ImagePullPolicy: corev1.PullAlways,
 				},
 					Script: `#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 golangci-lint run`,
 				},
 				},
@@ -166,7 +166,7 @@ golangci-lint run`,
 					},
 				},
 					Script: `#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 go test ./...`,
 				},
 				},
@@ -258,7 +258,7 @@ func TestVariableExpansion(t *testing.T) {
 	}
 
 	wantScript := `#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 echo "Hello john-doe!"
 echo "Thank you for running the workflow hello"
 echo "The PipelineRun $(context.pipelineRun.name) has been created"
@@ -398,7 +398,7 @@ echo -n "$(git rev-parse HEAD)" > /tekton/results/my-repo-commit`,
 									ImagePullPolicy: corev1.PullAlways,
 								},
 								Script: `#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 ls`,
 							},
 						},

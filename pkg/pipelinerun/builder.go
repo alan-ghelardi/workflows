@@ -181,7 +181,7 @@ func (b *Builder) buildStepTemplate(task *workflowsv1alpha1.Task) *corev1.Contai
 
 func (b *Builder) buildStep(embeddedStep workflowsv1alpha1.EmbeddedStep) pipelinev1beta1.Step {
 	script := fmt.Sprintf(`#!/usr/bin/env sh
-set -euo pipefail
+set -eu
 %s`, embeddedStep.Run)
 
 	step := pipelinev1beta1.Step{
