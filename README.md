@@ -1,3 +1,3 @@
-# Workflows
+# Tekton Workflows
 
-Workflows is an operator for Tekton pipelines
+Tekton pipelines made simpler through workflows integrated to Github
