@@ -91,7 +91,7 @@ func (e *EventHandler) triggerWorkflow(ctx context.Context, namespacedName types
 
 	if ok, message := filters.CanTrigger(workflow, event); !ok {
 		logger.Info(message)
-		return Forbidden(message)
+		return Accepted(message)
 	}
 
 	defaults := config.Get(ctx).Defaults

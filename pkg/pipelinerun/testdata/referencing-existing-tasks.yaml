@@ -12,11 +12,13 @@ spec:
 
   tasks:
     build:
-      uses: golang-builder
+      uses:
+        name: golang-builder
       serviceAccount: sa-1
 
     test:
-      uses: golang-testing
+      uses:
+        name: golang-testing
       serviceAccount: sa-2
       retries: 2
       timeout: 1h

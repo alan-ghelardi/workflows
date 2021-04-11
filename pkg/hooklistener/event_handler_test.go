@@ -206,7 +206,7 @@ func TestReturns200WhenGithubSendAPingEvent(t *testing.T) {
 	}
 }
 
-func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
+func TestReturns202WhenFiltersDoNotMatch(t *testing.T) {
 	handler := &EventHandler{workflowsClientSet: workflowsclientset.NewSimpleClientset(&workflowsv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-1",
@@ -246,7 +246,7 @@ func TestReturns403WhenFiltersDoNotMatch(t *testing.T) {
 
 	response := handler.triggerWorkflow(ctx, namespacedName, event)
 
-	wantStatus := 403
+	wantStatus := 202
 	wantMessage := "Workflow was rejected because Github event doesn't satisfy rule: branch john-patch1 doesn't match filters [main]"
 
 	gotStatus := response.Status

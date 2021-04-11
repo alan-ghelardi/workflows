@@ -307,7 +307,7 @@ type Task struct {
 
 	// Selects an existing Tekton Task to run in this workflow.
 	// +optional
-	Use string `json:"uses,omitempty"`
+	Use *pipelinev1beta1.TaskRef `json:"uses,omitempty"`
 }
 
 // EmbeddedStep defines a step to be executed as part of a task.

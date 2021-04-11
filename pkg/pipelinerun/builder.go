@@ -115,8 +115,8 @@ func (b *Builder) buildPipelineTasks() []pipelinev1beta1.PipelineTask {
 func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Task) pipelinev1beta1.PipelineTask {
 	pipelineTask := pipelinev1beta1.PipelineTask{Name: taskName}
 
-	if task.Use != "" {
-		pipelineTask.TaskRef = &pipelinev1beta1.TaskRef{Name: task.Use}
+	if task.Use != nil {
+		pipelineTask.TaskRef = task.Use
 	} else {
 		pipelineTask.TaskSpec = b.buildEmbededTask(task)
 	}

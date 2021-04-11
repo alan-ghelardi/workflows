@@ -41,6 +41,11 @@ func newResponse(status int, message string) *Response {
 	}
 }
 
+// Accepted returns a HTTP 202 response with the supplied message.
+func Accepted(message string) *Response {
+	return newResponse(http.StatusAccepted, message)
+}
+
 // OK returns a HTTP 200 response with the supplied message.
 func OK(message string) *Response {
 	return newResponse(http.StatusOK, message)

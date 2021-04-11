@@ -22,6 +22,7 @@ package v1alpha1
 
 import (
 	pod "github.com/tektoncd/pipeline/pkg/apis/pipeline/pod"
+	v1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -152,6 +153,11 @@ func (in *Task) DeepCopyInto(out *Task) {
 	if in.Timeout != nil {
 		in, out := &in.Timeout, &out.Timeout
 		*out = new(metav1.Duration)
+		**out = **in
+	}
+	if in.Use != nil {
+		in, out := &in.Use, &out.Use
+		*out = new(v1beta1.TaskRef)
 		**out = **in
 	}
 	return

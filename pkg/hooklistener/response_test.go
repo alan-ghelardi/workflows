@@ -12,6 +12,7 @@ func TestTestVariousResponseConstructors(t *testing.T) {
 		in     func(string) *Response
 		status int
 	}{
+		{in: Accepted, status: 202},
 		{in: BadRequest, status: 400},
 		{in: Created, status: 201},
 		{in: Forbidden, status: 403},
