@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - config-maps/config-defaults.yaml
+  - config-maps/config-github-app.yaml
+  - config-maps/config-leader-election.yaml
+  - config-maps/config-logging.yaml
+  - config-maps/config-observability.yaml
+  - crd/workflow.yaml
+  - deployments/controller.yaml
+  - deployments/hook-listener.yaml
+  - deployments/webhook.yaml
+  - namespace.yaml
+  - roles/cluster-role-binding.yaml
+  - roles/cluster-role.yaml
+  - roles/hook-listener.yaml
+  - service-accounts/controller.yaml
+  - service-accounts/hook-listener.yaml
+  - services/hook-listener.yaml
+  - services/webhook.yaml
+  - webhook-configuration.yaml

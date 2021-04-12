@@ -1,3 +1,5 @@
+IMAGE_REPOSITORY ?= 193814090748.dkr.ecr.us-east-1.amazonaws.com/workflows
+
 # Run unit tests.
 test:
 	go test ./...
@@ -17,7 +19,7 @@ endif
 
 # Install resources in the configured Kubernetes cluster in ~/.kube/config
 install-dev: lint
-	eval $$(minikube -p minikube docker-env) && ko apply -LRf config
+	eval $$(minikube -p minikube docker-env) && kustomize  build config/base/ | ko apply -Lf -
 
 install: lint
-	KO_DOCKER_REPO=193814090748.dkr.ecr.us-east-1.amazonaws.com/workflows ko apply -BRf config
+	KO_DOCKER_REPO=$(IMAGE_REPOSITORY) kustomize  build config/base/ | ko apply -Bf -
