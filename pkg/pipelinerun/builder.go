@@ -14,7 +14,7 @@ import (
 
 // Builder builds Tekton PipelineRun objects.
 type Builder struct {
-	builtInSteps map[BuiltInStep]bool
+	builtInSteps map[workflowsv1alpha1.BuiltInStep]BuiltInStep
 	defaults     *config.Defaults
 	event        *github.Event
 	replacements *variables.Replacements
@@ -48,7 +48,7 @@ type BuiltInStep interface {
 // the provided workflow and event.
 func NewBuilder(workflow *workflowsv1alpha1.Workflow, event *github.Event) *Builder {
 	return &Builder{
-		builtInSteps: make(map[BuiltInStep]bool),
+		builtInSteps: make(map[workflowsv1alpha1.BuiltInStep]BuiltInStep),
 		defaults:     &config.Defaults{},
 		event:        event,
 		replacements: variables.MakeReplacements(workflow, event),
@@ -83,7 +83,7 @@ func (b *Builder) Build() *pipelinev1beta1.PipelineRun {
 	b.addDefaultLabelsAndAnnotations(pipelineRun)
 
 	// Let built-in steps to modify the PipelineRun resource.
-	for builtInStep := range b.builtInSteps {
+	for _, builtInStep := range b.builtInSteps {
 		builtInStep.PostPipelineRunCreation(pipelineRun)
 	}
 
@@ -97,7 +97,7 @@ func (b *Builder) buildPipelineSpec() *pipelinev1beta1.PipelineSpec {
 	}
 
 	// Let built-in steps to modify the PipelineSpec
-	for builtInStep := range b.builtInSteps {
+	for _, builtInStep := range b.builtInSteps {
 		builtInStep.PostPipelineSpecCreation(pipelineSpec)
 	}
 
@@ -128,7 +128,7 @@ func (b *Builder) buildPipelineTask(taskName string, task *workflowsv1alpha1.Tas
 	pipelineTask.Timeout = task.Timeout
 
 	// Let built-in steps to modify the pipeline task.
-	for builtInStep := range b.builtInSteps {
+	for _, builtInStep := range b.builtInSteps {
 		builtInStep.PostPipelineTaskCreation(&pipelineTask)
 	}
 
@@ -156,7 +156,7 @@ func (b *Builder) buildEmbededTask(task *workflowsv1alpha1.Task) *pipelinev1beta
 	}
 
 	// Let built-in steps to modify the embedded task
-	for builtInStep := range b.builtInSteps {
+	for _, builtInStep := range b.builtInSteps {
 		builtInStep.PostEmbeddedTaskCreation(embededTask)
 	}
 	return embededTask
@@ -203,8 +203,9 @@ set -eu
 
 func (b *Builder) invokeBuiltInAction(embeddedStep workflowsv1alpha1.EmbeddedStep) pipelinev1beta1.Step {
 	var builtInStep BuiltInStep
+	builtdStepType := embeddedStep.Use
 
-	switch embeddedStep.Use {
+	switch builtdStepType {
 	case workflowsv1alpha1.CheckoutStep:
 		builtInStep = &Checkout{
 			event:    b.event,
@@ -215,7 +216,7 @@ func (b *Builder) invokeBuiltInAction(embeddedStep workflowsv1alpha1.EmbeddedSte
 		panic(fmt.Errorf("Unrecognized built-in step %s", embeddedStep.Use))
 	}
 
-	b.builtInSteps[builtInStep] = true
+	b.builtInSteps[builtdStepType] = builtInStep
 
 	return builtInStep.BuildStep(embeddedStep)
 }
